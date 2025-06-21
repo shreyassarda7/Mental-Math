@@ -174,10 +174,18 @@
         // Firebase variables (these will hold our connection to the "brain" and "notebook")
         let db;
         let auth;
-        let userId; 
-
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+        let userId;
+        
+        const firebaseConfig = {
+            apiKey: "AIzaSyDi85CcD0W1EI0QJSY6idJfYYYAEnD-FEc",
+            authDomain: "mental-math-496b1.firebaseapp.com",
+            projectId: "mental-math-496b1",
+            storageBucket: "mental-math-496b1.firebasestorage.app",
+            messagingSenderId: "54681836669",
+            appId: "1:54681836669:web:85eb71a12614953b836514",
+            measurementId: "G-SCVYX2PEYT"
+        };
+        const appId = firebaseConfig.projectId; // Use the projectId from your config as the appId
 
         if (Object.keys(firebaseConfig).length > 0) {
             const app = initializeApp(firebaseConfig);
