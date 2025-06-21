@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multiplication Quiz Master</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        /* Chosen Palette: Warm Harmony */
+        /* Background: #F7F5F0 (Soft Cream) */
+        /* Primary Accent (Buttons/Highlight): #6B7280 (Cool Gray-Blue) */
+        /* Secondary Accent (Options/Text): #9CA3AF (Muted Gray) */
+        /* Success: #10B981 (Emerald Green) */
+        /* Danger/Warning: #EF4444 (Red) */
+        /* Text: #1F2937 (Dark Gray) */
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #F7F5F0; /* Soft Cream background */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 1rem;
+            box-sizing: border-box;
+        }
+        .container-wrapper {
+            @apply w-full max-w-xl mx-auto p-6 bg-white rounded-3xl shadow-2xl border border-gray-100 flex flex-col items-center;
+        }
+        h1 {
+            @apply text-4xl sm:text-5xl font-extrabold text-gray-800 mb-8;
+        }
+        .text-feedback {
+            @apply text-xl sm:text-2xl font-semibold mb-6 min-h-[30px] flex items-center justify-center;
+        }
+        .btn-primary {
+            @apply bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg shadow-lg transition duration-200 ease-in-out transform hover:scale-105 active:scale-95;
+            background-color: #6B7280; /* Primary Accent */
+        }
+        .btn-primary:hover {
+            background-color: #4B5563;
+        }
+        .input-field {
+            @apply p-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 text-lg sm:text-xl text-center w-full max-w-sm mx-auto;
+        }
+
+        /* Timer Bar Styling */
+        .timer-bar-container {
+            @apply w-full h-4 bg-gray-200 rounded-full overflow-hidden mb-6 shadow-inner;
+        }
+        .timer-progress {
+            @apply h-full rounded-full transition-all duration-100 ease-linear; /* Smoother transition */
+            background-color: #F59E0B; /* Amber 500 */
+        }
+        .timer-progress.critical {
+            background-color: #EF4444; /* Red 500 */
+        }
+        /* Ensure responsive font sizes */
+        @media (max-width: 640px) {
+            h1 {
+                font-size: 2.5rem; /* Smaller on small screens */
+            }
+            .text-feedback {
+                font-size: 1.25rem;
+            }
+            .input-field {
+                font-size: 1.25rem;
+                padding: 0.75rem;
+            }
+            .btn-primary {
+                font-size: 1.25rem;
+                padding: 0.75rem 1.25rem;
+            }
+        }
+        .review-item {
+            @apply bg-gray-50 p-4 rounded-lg mb-2 text-left text-gray-800;
+        }
+        .review-item.correct-answer {
+            @apply bg-green-50;
+        }
+        .review-item.incorrect-answer {
+            @apply bg-red-50;
+        }
+        .review-text-correct {
+            @apply text-green-700 font-semibold;
+        }
+        .review-text-incorrect {
+            @apply text-red-700 font-semibold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-wrapper">
+        <h1 class="font-extrabold text-gray-900">Multiplication Quiz Master</h1>
+
+        <div id="quiz-area" class="text-center w-full">
+            <p class="text-sm text-gray-500 mb-2">Your ID: <span id="user-id-display" class="font-mono text-xs">Loading...</span></p>
+
+            <div class="flex justify-between items-center mb-4 text-gray-700 text-lg sm:text-xl font-bold w-full">
+                <span>Score: <span id="score-display">0</span> / <span id="total-questions">20</span></span>
+                <span>Question: <span id="current-question-number">1</span> / <span id="max-questions">20</span></span>
+            </div>
+
+            <div id="timer-display" class="text-3xl font-bold text-gray-800 mb-4">Time: <span id="time-left">10</span>s</div>
+            <div class="timer-bar-container">
+                <div id="timer-progress" class="timer-progress"></div>
+            </div>
+
+            <div id="question-display" class="text-5xl sm:text-6xl font-extrabold text-gray-800 mb-8 leading-tight"></div>
+            
+            <input type="number" id="answer-input" class="input-field mb-4" placeholder="Your Answer" autofocus>
+            <div id="feedback" class="text-feedback"></div>
+        </div>
+
+        <div id="results-area" class="hidden text-center w-full">
+            <h2 class="text-3xl sm:text-4xl font-bold text-gray-800 mb-4">Quiz Completed!</h2>
+            <p class="text-2xl sm:text-3xl text-gray-700 mb-8">Your final score is: <span id="final-score" class="font-extrabold text-blue-600">0</span> / 20</p>
+            <p class="text-lg text-gray-600 mb-4">Your best score so far: <span id="best-score-display" class="font-extrabold text-green-600">0</span></p>
+            
+            <h3 class="text-2xl font-bold text-gray-800 mt-8 mb-4">Quiz Review</h3>
+            <div id="quiz-review-container" class="w-full text-left max-h-96 overflow-y-auto pr-2">
+                </div>
+
+            <button id="restart-btn" class="btn-primary mt-8">Play Again</button>
+        </div>
+    </div>
+
+    <audio id="timeout-sound" src="https://assets.mixkit.co/sfx/preview/mixkit-wrong-answer-fail-notification-946.mp3"></audio>
+
+    <script type="module">
+        // Step 1: Bring in Firebase's magic tools!
+        // We need special tools to talk to Firebase, like a phone to call the "brain" and a pen to write in the "notebook".
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // DOM element references (these are like labels for different parts of our game)
+        const questionDisplay = document.getElementById('question-display');
+        const answerInput = document.getElementById('answer-input'); 
+        const feedback = document.getElementById('feedback');
+        const scoreDisplay = document.getElementById('score-display');
+        const currentQuestionNumberDisplay = document.getElementById('current-question-number');
+        const quizArea = document.getElementById('quiz-area');
+        const resultsArea = document.getElementById('results-area');
+        const finalScoreDisplay = document.getElementById('final-score');
+        const restartBtn = document.getElementById('restart-btn');
+        const timerDisplay = document.getElementById('time-left');
+        const timerProgressBar = document.getElementById('timer-progress');
+        const userIdDisplay = document.getElementById('user-id-display'); 
+        const bestScoreDisplay = document.getElementById('best-score-display'); 
+        const quizReviewContainer = document.getElementById('quiz-review-container'); 
+        const timeoutSound = document.getElementById('timeout-sound'); 
+
+        // Quiz state variables (these keep track of how the game is doing)
+        let currentQuestionIndex = 0;
+        let score = 0;
+        const totalQuestions = 20;
+        let questions = [];
+        let answeredCurrentQuestion = false;
+        let bestScore = 0; 
+
+        // Timer related variables
+        let timerInterval;
+        let timeLeft;
+        let baseQuestionTime = 10; 
+        let bonusSecondsAvailable = 0; // New: Bonus time counter
+        const minQuestionTime = 7; // Changed: Minimum base time is now 7 seconds
+        const maxBonusSeconds = 10; // Maximum bonus seconds that can be accumulated
+        const feedbackDisplayTime = 1500; // Time to show feedback before auto-advancing
+        let nextQuestionTimeoutId; 
+        let debounceTimeoutId; // New: For auto-submission debounce
+
+        // Firebase variables (these will hold our connection to the "brain" and "notebook")
+        let db;
+        let auth;
+        let userId; 
+
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+
+        if (Object.keys(firebaseConfig).length > 0) {
+            const app = initializeApp(firebaseConfig);
+            db = getFirestore(app); 
+            auth = getAuth(app);   
+        } else {
+            console.error("Firebase config not found. Persistence will not work.");
+        }
+
+        async function authenticateAndLoadData() {
+            try {
+                if (auth) {
+                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                        await signInWithCustomToken(auth, __initial_auth_token);
+                    } else {
+                        await signInAnonymously(auth);
+                    }
+
+                    userId = auth.currentUser?.uid || crypto.randomUUID(); 
+                    userIdDisplay.textContent = userId; 
+
+                    await loadBestScore();
+                } else {
+                    userIdDisplay.textContent = 'Firebase Not Initialized';
+                    console.error("Authentication skipped: Firebase Auth not initialized.");
+                }
+            } catch (error) {
+                console.error("Error during Firebase authentication:", error);
+                userIdDisplay.textContent = 'Auth Error!';
+            }
+        }
+
+        async function loadBestScore() {
+            if (!db || !userId) return; 
+
+            try {
+                const userDocRef = doc(db, `artifacts/${appId}/users/${userId}/quizData/scoreSummary`);
+                const docSnap = await getDoc(userDocRef); 
+
+                if (docSnap.exists()) { 
+                    bestScore = docSnap.data().bestScore || 0; 
+                    bestScoreDisplay.textContent = bestScore; 
+                } else {
+                    bestScore = 0;
+                    bestScoreDisplay.textContent = bestScore;
+                    console.log("No best score found for this user. Starting fresh!");
+                }
+            } catch (error) {
+                console.error("Error loading best score:", error);
+                bestScoreDisplay.textContent = 'Error!';
+            }
+        }
+
+        async function saveScore() {
+            if (!db || !userId) {
+                console.warn("Cannot save score: Firebase or User ID not available.");
+                return;
+            }
+
+            try {
+                const userDocRef = doc(db, `artifacts/${appId}/users/${userId}/quizData/scoreSummary`);
+                
+                await setDoc(userDocRef, {
+                    lastScore: score,
+                    bestScore: Math.max(bestScore, score), 
+                    timestamp: new Date() 
+                }, { merge: true }); 
+                
+                console.log("Score saved successfully!");
+            } catch (error) {
+                console.error("Error saving score:", error);
+            }
+        }
+
+        function getRandomNumber(min, max) {
+            return Math.floor(Math.random() * (max - min + 1)) + min;
+        }
+
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
+        function generateIncorrectOptions(correctAnswer) {
+            const incorrectOptions = new Set();
+            while (incorrectOptions.size < 3) {
+                let distractor;
+                const type = getRandomNumber(1, 4);
+
+                if (type === 1) {
+                    distractor = correctAnswer + getRandomNumber(-5, 5);
+                } else if (type === 2) {
+                    distractor = correctAnswer + getRandomNumber(-15, 15);
+                } else if (type === 3) {
+                    distractor = Math.round(correctAnswer / 10) * 10 + (Math.random() < 0.5 ? -5 : 5);
+                } else {
+                    distractor = parseInt(correctAnswer.toString().split('').reverse().join('')) + getRandomNumber(-5, 5);
+                }
+                
+                if (distractor !== correctAnswer && distractor > 0 && Math.abs(distractor - correctAnswer) < 100) {
+                    incorrectOptions.add(distractor);
+                }
+            }
+            return Array.from(incorrectOptions);
+        }
+
+        /**
+         * Generates a single mathematical component (multiplication, square, or cube).
+         * @returns {object} An object with 'text' (string) and 'value' (number).
+         */
+        function generateQuestionComponent() {
+            const type = getRandomNumber(1, 3); // 1: multiplication, 2: square, 3: cube
+            let text, value;
+
+            if (type === 1) { // Multiplication
+                const num1 = getRandomNumber(5, 20); 
+                const num2 = getRandomNumber(2, 9);  
+                text = `${num1} &times; ${num2}`;
+                value = num1 * num2;
+            } else if (type === 2) { // Square
+                const num = getRandomNumber(5, 15); 
+                text = `${num}^2`;
+                value = num * num;
+            } else { // Cube
+                const num = getRandomNumber(2, 7); 
+                text = `${num}^3`;
+                value = num * num * num;
+            }
+            return { text, value };
+        }
+
+        function generateStandardQuestion() {
+            let component1 = generateQuestionComponent();
+            let component2 = generateQuestionComponent();
+            let questionString = '';
+            let correctAnswer;
+            let operator;
+
+            if (Math.random() < 0.5) {
+                operator = '+';
+                questionString = `${component1.text} + ${component2.text} = ?`;
+                correctAnswer = component1.value + component2.value;
+            } else {
+                operator = '-';
+                if (component1.value < component2.value) {
+                    [component1, component2] = [component2, component1];
+                }
+                questionString = `${component1.text} - ${component2.text} = ?`;
+                correctAnswer = component1.value - component2.value;
+                if (correctAnswer <= 0) { 
+                    return generateStandardQuestion(); 
+                }
+            }
+            
+            const options = new Set(); 
+            options.add(correctAnswer);
+            generateIncorrectOptions(correctAnswer).forEach(opt => options.add(opt));
+            
+            const shuffledOptions = shuffleArray(Array.from(options));
+            return {
+                question: questionString,
+                answer: correctAnswer,
+                options: shuffledOptions, 
+                isBonus: false, 
+                userAnswer: null, 
+                isAnswerCorrect: null 
+            };
+        }
+
+        function generateBonusQuestion() {
+            let questionString = '';
+            let correctAnswer;
+            let val1, val2, val3;
+
+            const comboType = getRandomNumber(1, 4);
+
+            if (comboType === 1) {
+                val1 = getRandomNumber(2, 8);
+                val2 = getRandomNumber(2, 12);
+                questionString = `${val2}^2 + ${val1}^3 = ?`;
+                correctAnswer = (val2 * val2) + (val1 * val1 * val1);
+            } else if (comboType === 2) {
+                val1 = getRandomNumber(3, 7);
+                val2 = getRandomNumber(2, 10);
+                val3 = getRandomNumber(2, 8);
+                questionString = `${val1}^3 - ${val2} &times; ${val3} = ?`;
+                correctAnswer = (val1 * val1 * val1) - (val2 * val3);
+            } else if (comboType === 3) {
+                val1 = getRandomNumber(5, 15);
+                val2 = getRandomNumber(3, 9);
+                val3 = getRandomNumber(2, 10);
+                questionString = `${val1} &times; ${val2} + ${val3}^2 = ?`;
+                correctAnswer = (val1 * val2) + (val3 * val3);
+            } else {
+                val1 = getRandomNumber(10, 20);
+                val2 = getRandomNumber(5, 10);
+                val3 = getRandomNumber(2, 8);
+                correctAnswer = (val1 * val2) - (val3 * val3);
+                while (correctAnswer <= 0) {
+                    val1 = getRandomNumber(10, 20);
+                    val2 = getRandomNumber(5, 10);
+                    val3 = getRandomNumber(2, 8);
+                    correctAnswer = (val1 * val2) - (val3 * val3);
+                }
+                questionString = `${val1} &times; ${val2} - ${val3}^2 = ?`;
+            }
+
+            const options = new Set(); 
+            options.add(correctAnswer);
+            generateIncorrectOptions(correctAnswer).forEach(opt => options.add(opt));
+            
+            const shuffledOptions = shuffleArray(Array.from(options));
+
+            return {
+                question: questionString,
+                answer: correctAnswer,
+                options: shuffledOptions, 
+                isBonus: true,
+                userAnswer: null, 
+                isAnswerCorrect: null 
+            };
+        }
+
+        function initializeQuestions() {
+            questions = [];
+            const generatedKeys = new Set();
+            const bonusQuestionChance = 0.30; 
+
+            for (let i = 0; i < totalQuestions; i++) {
+                let newQuestion;
+                
+                if (Math.random() < bonusQuestionChance) {
+                    newQuestion = generateBonusQuestion();
+                } else {
+                    newQuestion = generateStandardQuestion();
+                }
+
+                const questionKey = `${newQuestion.question}-${newQuestion.answer}`;
+                if (!generatedKeys.has(questionKey)) {
+                    questions.push(newQuestion);
+                    generatedKeys.add(questionKey);
+                } else {
+                    i--; 
+                }
+            }
+        }
+
+        function startTimer() {
+            stopTimer();
+            // Total time for the current question includes base time plus accumulated bonus time
+            timeLeft = baseQuestionTime + bonusSecondsAvailable; 
+            updateTimerDisplay();
+
+            // Clear the input field and focus it for the new question
+            answerInput.value = '';
+            disableInput(false); // Enable input at start of question
+            answerInput.focus();
+
+            timerInterval = setInterval(() => {
+                timeLeft--;
+                updateTimerDisplay();
+
+                if (timeLeft <= 0) {
+                    stopTimer();
+                    const currentQ = questions[currentQuestionIndex]; 
+                    feedback.textContent = `Time's up! The answer was ${currentQ.answer}.`;
+                    feedback.className = 'text-feedback text-red-600';
+                    timeoutSound.play(); 
+
+                    currentQ.userAnswer = 'Time Out';
+                    currentQ.isAnswerCorrect = false;
+
+                    // Decrease base time for next questions if time runs out, but not below minQuestionTime
+                    baseQuestionTime = Math.max(minQuestionTime, baseQuestionTime - 1);
+                    // Bonus seconds are NOT affected by timeout
+
+                    disableInput(true); // Disable input on timeout
+                    nextQuestionTimeoutId = setTimeout(nextQuestion, feedbackDisplayTime); 
+                }
+            }, 1000);
+        }
+
+        function stopTimer() {
+            clearInterval(timerInterval);
+            timerProgressBar.classList.remove('critical');
+        }
+
+        function updateTimerDisplay() {
+            timerDisplay.textContent = timeLeft;
+            const initialTimeForProgress = baseQuestionTime + bonusSecondsAvailable; // Total time originally given
+            const progressPercentage = (timeLeft / initialTimeForProgress) * 100;
+            timerProgressBar.style.width = `${progressPercentage}%`;
+
+            if (timeLeft <= (initialTimeForProgress * 0.2)) { 
+                timerProgressBar.classList.add('critical');
+            } else {
+                timerProgressBar.classList.remove('critical');
+            }
+        }
+
+        function displayQuestion() {
+            if (currentQuestionIndex < totalQuestions) { 
+                const currentQ = questions[currentQuestionIndex];
+                questionDisplay.innerHTML = currentQ.question;
+                feedback.textContent = '';
+                answeredCurrentQuestion = false;
+                
+                currentQuestionNumberDisplay.textContent = currentQuestionIndex + 1;
+                startTimer();
+
+            } else {
+                endQuiz();
+            }
+        }
+
+        // Renamed function to reflect removal of submit button
+        function disableInput(shouldDisable) {
+            answerInput.disabled = shouldDisable;
+        }
+        
+        function checkAnswer() {
+            if (answeredCurrentQuestion) return; 
+
+            stopTimer();
+            answeredCurrentQuestion = true;
+            
+            const inputValue = answerInput.value.trim();
+            const userAnswer = parseInt(inputValue, 10);
+            const currentQ = questions[currentQuestionIndex];
+
+            // Validate input: must not be empty and must be a valid number
+            if (inputValue === '' || isNaN(userAnswer)) {
+                feedback.textContent = 'Please enter a number!';
+                feedback.className = 'text-feedback text-red-600';
+                timeoutSound.play(); 
+                // Invalid input still counts as a 'wrong' attempt in terms of bonus time, but not a 'timeout'
+                bonusSecondsAvailable = 0; // Invalid input also resets bonus
+                currentQ.userAnswer = inputValue === '' ? 'No Input' : 'Invalid Input'; 
+                currentQ.isAnswerCorrect = false;
+                baseQuestionTime = Math.max(minQuestionTime, baseQuestionTime - 1); // Penalize base time for invalid input
+                disableInput(true);
+                nextQuestionTimeoutId = setTimeout(nextQuestion, feedbackDisplayTime); 
+                return;
+            }
+
+            currentQ.userAnswer = userAnswer; 
+
+            if (userAnswer === currentQ.answer) {
+                feedback.textContent = 'Correct!';
+                feedback.className = 'text-feedback text-green-600';
+                score++;
+                currentQ.isAnswerCorrect = true; 
+
+                // Correct answer adds 1 second to bonus time, up to maxBonusSeconds
+                bonusSecondsAvailable = Math.min(maxBonusSeconds, bonusSecondsAvailable + 1); 
+                
+            } else {
+                feedback.textContent = `Incorrect. The answer was ${currentQ.answer}.`;
+                feedback.className = 'text-feedback text-red-600';
+                timeoutSound.play(); 
+                // Incorrect answer resets bonus time to 0
+                bonusSecondsAvailable = 0; 
+                currentQ.isAnswerCorrect = false; 
+                baseQuestionTime = Math.max(minQuestionTime, baseQuestionTime - 1);
+            }
+
+            scoreDisplay.textContent = score;
+            disableInput(true); // Disable input after answer
+            nextQuestionTimeoutId = setTimeout(nextQuestion, feedbackDisplayTime); 
+        }
+
+        function nextQuestion() {
+            // Clear any pending timeout for next question if this function is called manually
+            if (nextQuestionTimeoutId) {
+                clearTimeout(nextQuestionTimeoutId);
+                nextQuestionTimeoutId = null;
+            }
+            // Clear any pending auto-submit debounce
+            if (debounceTimeoutId) {
+                clearTimeout(debounceTimeoutId);
+                debounceTimeoutId = null;
+            }
+
+            currentQuestionIndex++;
+            if (currentQuestionIndex < totalQuestions) {
+                displayQuestion();
+            } else {
+                endQuiz();
+            }
+        }
+
+        function populateQuizReview() {
+            quizReviewContainer.innerHTML = ''; 
+            questions.forEach((q, index) => {
+                const reviewItem = document.createElement('div');
+                reviewItem.className = `review-item ${q.isAnswerCorrect ? 'correct-answer' : 'incorrect-answer'}`;
+                
+                const questionText = document.createElement('p');
+                questionText.innerHTML = `<strong>Q${index + 1}:</strong> ${q.question.replace(' = ?', '')}`; 
+                reviewItem.appendChild(questionText);
+
+                const userAnswerText = document.createElement('p');
+                const userAns = q.userAnswer === null || q.userAnswer === undefined ? 'Not Answered' : q.userAnswer;
+                userAnswerText.innerHTML = `Your Answer: <span class="${q.isAnswerCorrect ? 'review-text-correct' : 'review-text-incorrect'}">${userAns}</span>`;
+                reviewItem.appendChild(userAnswerText);
+
+                const correctAnswerText = document.createElement('p');
+                correctAnswerText.innerHTML = `Correct Answer: <span class="font-semibold">${q.answer}</span>`;
+                reviewItem.appendChild(correctAnswerText);
+
+                quizReviewContainer.appendChild(reviewItem);
+            });
+        }
+
+        function endQuiz() {
+            stopTimer();
+            // Clear any pending timeouts when quiz ends
+            if (nextQuestionTimeoutId) {
+                clearTimeout(nextQuestionTimeoutId);
+                nextQuestionTimeoutId = null;
+            }
+            if (debounceTimeoutId) {
+                clearTimeout(debounceTimeoutId);
+                debounceTimeoutId = null;
+            }
+
+            quizArea.classList.add('hidden');
+            resultsArea.classList.remove('hidden');
+            finalScoreDisplay.textContent = score;
+            saveScore();
+            loadBestScore();
+            populateQuizReview(); 
+        }
+
+        function resetQuiz() {
+            currentQuestionIndex = 0;
+            score = 0;
+            baseQuestionTime = 10; 
+            bonusSecondsAvailable = 0; // Reset bonus time on new game
+            feedback.textContent = '';
+            quizReviewContainer.innerHTML = ''; 
+            initializeQuestions();
+            displayQuestion();
+        }
+
+        // Auto-submit on input change with debounce
+        answerInput.addEventListener('input', () => {
+            clearTimeout(debounceTimeoutId);
+            const inputValue = answerInput.value.trim();
+            // Only auto-submit if the input is not empty and represents a valid number
+            if (inputValue !== '' && !isNaN(inputValue)) { 
+                debounceTimeoutId = setTimeout(() => {
+                    // Only check answer if not already answered for this question
+                    if (!answeredCurrentQuestion) {
+                        checkAnswer();
+                    }
+                }, 700); // Debounce for 700ms
+            }
+        });
+
+        // Event Listener for Enter key (still allows immediate submission)
+        answerInput.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                clearTimeout(debounceTimeoutId); // Clear debounce if Enter is pressed for immediate submission
+                if (answeredCurrentQuestion) { 
+                    nextQuestion(); 
+                } else { 
+                    checkAnswer(); 
+                }
+            }
+        });
+
+        restartBtn.addEventListener('click', resetQuiz);
+
+        window.onload = async function() {
+            initializeQuestions();
+            document.getElementById('max-questions').textContent = totalQuestions;
+            document.getElementById('total-questions').textContent = totalQuestions;
+            await authenticateAndLoadData();
+            displayQuestion();
+        };
+    </script>
+</body>
+</html>
