@@ -113,9 +113,32 @@
     <div class="container-wrapper">
         <h1 class="font-extrabold text-gray-900">Multiplication Quiz Master</h1>
 
-        <div id="quiz-area" class="text-center w-full">
+        <!-- NEW: Start Screen/Login Section Container -->
+        <div id="start-screen" class="w-full text-center">
             <p class="text-sm text-gray-500 mb-2">Your ID: <span id="user-id-display" class="font-mono text-xs">Loading...</span></p>
 
+            <div id="login-logout-section" class="w-full text-center mt-6 p-4 bg-gray-50 rounded-xl shadow-inner">
+                <div id="login-section" class=""> <!-- Not hidden by default now -->
+                    <h3 class="text-xl font-bold text-gray-800 mb-4">Login or Sign Up</h3>
+                    <input type="email" id="login-email" class="input-field mb-2" placeholder="Email">
+                    <input type="password" id="login-password" class="input-field mb-4" placeholder="Password">
+                    <div class="flex flex-col sm:flex-row gap-2 justify-center">
+                        <button id="signup-btn" class="btn-primary flex-1">Sign Up</button>
+                        <button id="signin-btn" class="btn-primary flex-1">Sign In</button>
+                    </div>
+                </div>
+                <div id="logout-section" class="hidden">
+                    <p class="text-lg text-gray-700 mb-4">Logged in as: <span id="logged-in-user-display" class="font-bold text-gray-900"></span></p>
+                    <button id="logout-btn" class="btn-primary">Logout</button>
+                </div>
+            </div>
+
+            <button id="start-quiz-btn" class="btn-primary mt-8 hidden">Start Quiz</button>
+             <p id="loading-auth-message" class="text-gray-600 mt-4">Loading authentication...</p>
+        </div>
+        <!-- END NEW: Start Screen/Login Section Container -->
+
+        <div id="quiz-area" class="text-center w-full hidden"> <!-- Hidden by default now -->
             <div class="flex justify-between items-center mb-4 text-gray-700 text-lg sm:text-xl font-bold w-full">
                 <span>Score: <span id="score-display">0</span> / <span id="total-questions">20</span></span>
                 <span>Question: <span id="current-question-number">1</span> / <span id="max-questions">20</span></span>
@@ -152,9 +175,10 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
+        // DOM element references
         const questionDisplay = document.getElementById('question-display');
         const answerInput = document.getElementById('answer-input'); 
         const feedback = document.getElementById('feedback');
@@ -173,6 +197,22 @@
         const getExplanationBtn = document.getElementById('get-explanation-btn'); 
         const explanationOutput = document.getElementById('explanation-output'); 
 
+        // Login/Logout UI Elements
+        const startScreen = document.getElementById('start-screen'); // Reference to the start screen container
+        const loginLogoutSection = document.getElementById('login-logout-section'); // Reference to the overall login/logout area
+        const loginSection = document.getElementById('login-section');
+        const logoutSection = document.getElementById('logout-section');
+        const loginEmailInput = document.getElementById('login-email');
+        const loginPasswordInput = document.getElementById('login-password');
+        const signupBtn = document.getElementById('signup-btn');
+        const signinBtn = document.getElementById('signin-btn');
+        const logoutBtn = document.getElementById('logout-btn');
+        const loggedInUserDisplay = document.getElementById('logged-in-user-display');
+        const startQuizBtn = document.getElementById('start-quiz-btn'); // Start Quiz Button
+        const loadingAuthMessage = document.getElementById('loading-auth-message'); // Loading message
+
+
+        // Quiz state variables
         let currentQuestionIndex = 0;
         let score = 0;
         const totalQuestions = 20;
@@ -180,6 +220,7 @@
         let answeredCurrentQuestion = false;
         let bestScore = 0; 
 
+        // Timer related variables
         let timerInterval;
         let timeLeft;
         let baseQuestionTime = 10; 
@@ -189,16 +230,20 @@
         const feedbackDisplayTime = 1500; 
         let nextQuestionTimeoutId; 
         let debounceTimeoutId; 
-        let questionStartTime; // New: To track when a question starts
+        let questionStartTime; 
+        let authAutoStartTimeoutId; // New: For auto-start timeout after login
 
+        // Firebase variables
         let db;
         let auth;
-        let userId; 
+        let userId; // The current user's UID (anonymous or authenticated)
+        let currentUser = null; // Stores the Firebase User object
 
         // PASTE YOUR ACTUAL FIREBASE CONFIG HERE
-        // Example (REPLACE with your actual values from Firebase Console):
+        // Make sure this is your EXACT config copied from Firebase Project Settings
+        // Example:
         const firebaseConfig = {
-            apiKey: "YOUR_API_KEY", // Replace with your actual API key
+            apiKey: "YOUR_API_KEY", // Replace with your actual API key from Firebase Project Settings -> Your apps (Web)
             authDomain: "YOUR_PROJECT_ID.firebaseapp.com", // Replace with your actual auth domain
             projectId: "YOUR_PROJECT_ID", // Replace with your actual project ID
             storageBucket: "YOUR_PROJECT_ID.appspot.com", // Replace with your actual storage bucket
@@ -220,33 +265,87 @@
             userIdDisplay.textContent = 'Firebase Init Error!';
             db = null;
             auth = null;
+            // Hide login section and show an error if Firebase cannot initialize
+            loginLogoutSection.classList.add('hidden');
+            loadingAuthMessage.textContent = 'Failed to initialize app. Check console for errors.';
+            loadingAuthMessage.classList.remove('hidden');
+            loadingAuthMessage.classList.add('text-red-600');
+            startQuizBtn.classList.add('hidden'); // Ensure start button is hidden if firebase init fails
         }
 
         async function authenticateAndLoadData() {
-            try {
-                if (auth) {
-                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                        await signInWithCustomToken(auth, __initial_auth_token);
+            onAuthStateChanged(auth, async (user) => {
+                loadingAuthMessage.classList.add('hidden'); // Hide loading message once auth state is known
+                if (app) { // Only show start button if Firebase core app is initialized
+                    startQuizBtn.classList.remove('hidden'); // Show start quiz button
+                } else {
+                    startQuizBtn.classList.add('hidden'); // Keep hidden if Firebase init failed
+                }
+
+
+                if (user) {
+                    currentUser = user;
+                    userId = user.uid; 
+                    
+                    if (user.email) {
+                        userIdDisplay.textContent = `ID: ${user.uid.substring(0, 8)}... | ${user.email}`;
+                        loggedInUserDisplay.textContent = user.email;
+                        loginSection.classList.add('hidden');
+                        logoutSection.classList.remove('hidden');
                     } else {
-                        await signInAnonymously(auth);
+                        userIdDisplay.textContent = `ID: ${user.uid.substring(0, 8)}... | Anonymous`;
+                        loggedInUserDisplay.textContent = `Anonymous (${user.uid.substring(0, 8)}...)`;
+                        loginSection.classList.remove('hidden'); 
+                        logoutSection.classList.add('hidden'); 
                     }
-
-                    userId = auth.currentUser?.uid || crypto.randomUUID(); 
-                    userIdDisplay.textContent = userId; 
-
                     await loadBestScore();
                 } else {
-                    userIdDisplay.textContent = 'Firebase Not Initialized';
-                    console.error("Authentication skipped: Firebase Auth not initialized.");
+                    currentUser = null;
+                    userId = crypto.randomUUID(); 
+                    userIdDisplay.textContent = `ID: ${userId.substring(0, 8)}... | Not Logged In`;
+                    loggedInUserDisplay.textContent = 'Not Logged In';
+                    loginSection.classList.remove('hidden');
+                    logoutSection.classList.add('hidden');
+
+                    if (typeof __initial_auth_token === 'undefined' || !__initial_auth_token) {
+                         try {
+                            await signInAnonymously(auth);
+                            console.log("Signed in anonymously.");
+                         } catch (anonError) {
+                            console.error("Failed to sign in anonymously:", anonError);
+                            userIdDisplay.textContent = 'Auth Failed!';
+                            loadingAuthMessage.textContent = 'Failed to sign in. Please try refreshing.';
+                            loadingAuthMessage.classList.remove('hidden');
+                            startQuizBtn.classList.add('hidden'); 
+                         }
+                    }
                 }
-            } catch (error) {
-                console.error("Error during Firebase authentication:", error);
-                userIdDisplay.textContent = 'Auth Error!';
+                // Do NOT call displayQuestion here. It will be called by startQuiz()
+            });
+
+            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                try {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                    console.log("Signed in with custom token from Canvas.");
+                } catch (error) {
+                    console.error("Error signing in with custom token:", error);
+                }
+            } else if (!auth.currentUser) { 
+                try {
+                    await signInAnonymously(auth);
+                    console.log("Attempting initial anonymous sign-in (outside Canvas).");
+                } catch (error) {
+                    console.error("Error during initial anonymous sign-in:", error);
+                }
             }
         }
 
         async function loadBestScore() {
-            if (!db || !userId) return; 
+            if (!db || !userId) {
+                console.warn("Cannot load score: Firebase or User ID not available.");
+                bestScoreDisplay.textContent = 'N/A'; 
+                return;
+            }
 
             try {
                 const userDocRef = doc(db, `artifacts/${appId}/users/${userId}/quizData/scoreSummary`);
@@ -258,10 +357,10 @@
                 } else {
                     bestScore = 0;
                     bestScoreDisplay.textContent = bestScore;
-                    console.log("No best score found for this user. Starting fresh!");
+                    console.log(`No best score found for user ${userId}. Starting fresh!`);
                 }
             } catch (error) {
-                console.error("Error loading best score:", error);
+                console.error(`Error loading best score for user ${userId}:`, error);
                 bestScoreDisplay.textContent = 'Error!';
             }
         }
@@ -281,10 +380,108 @@
                     timestamp: new Date() 
                 }, { merge: true }); 
                 
-                console.log("Score saved successfully!");
+                console.log(`Score saved successfully for user ${userId}!`);
             } catch (error) {
-                console.error("Error saving score:", error);
+                console.error(`Error saving score for user ${userId}:`, error);
             }
+        }
+
+        // Authentication functions
+        async function handleSignUp() {
+            const email = loginEmailInput.value;
+            const password = loginPasswordInput.value;
+            if (!email || !password) {
+                feedback.textContent = "Email and password are required!";
+                feedback.className = 'text-feedback text-red-600';
+                return;
+            }
+            try {
+                const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+                feedback.textContent = "Account created and logged in! Starting quiz in 5s...";
+                feedback.className = 'text-feedback text-green-600';
+                loginEmailInput.value = ''; 
+                loginPasswordInput.value = '';
+                // Auto-start quiz after a delay
+                authAutoStartTimeoutId = setTimeout(startQuiz, 5000); 
+            } catch (error) {
+                feedback.textContent = `Error signing up: ${error.message}`;
+                feedback.className = 'text-feedback text-red-600';
+                console.error("Sign up error:", error);
+            }
+        }
+
+        async function handleSignIn() {
+            const email = loginEmailInput.value;
+            const password = loginPasswordInput.value;
+            if (!email || !password) {
+                feedback.textContent = "Email and password are required!";
+                feedback.className = 'text-feedback text-red-600';
+                return;
+            }
+            try {
+                await signInWithEmailAndPassword(auth, email, password);
+                feedback.textContent = "Logged in successfully! Starting quiz in 5s...";
+                feedback.className = 'text-feedback text-green-600';
+                loginEmailInput.value = ''; 
+                loginPasswordInput.value = '';
+                // Auto-start quiz after a delay
+                authAutoStartTimeoutId = setTimeout(startQuiz, 5000); 
+            } catch (error) {
+                feedback.textContent = `Error signing in: ${error.message}`;
+                feedback.className = 'text-feedback text-red-600';
+                console.error("Sign in error:", error);
+            }
+        }
+
+        async function handleSignOut() {
+            try {
+                if (authAutoStartTimeoutId) { // Clear any pending auto-start
+                    clearTimeout(authAutoStartTimeoutId);
+                    authAutoStartTimeoutId = null;
+                }
+                await signOut(auth);
+                feedback.textContent = "Logged out successfully!";
+                feedback.className = 'text-feedback text-green-600';
+                loginEmailInput.value = ''; 
+                loginPasswordInput.value = '';
+                // After logout, transition back to the start screen and reset quiz state
+                startScreen.classList.remove('hidden');
+                quizArea.classList.add('hidden');
+                resultsArea.classList.add('hidden');
+                resetQuizStateOnly(); // Reset quiz variables without displaying question
+            } catch (error) {
+                feedback.textContent = `Error logging out: ${error.message}`;
+                feedback.className = 'text-feedback text-red-600';
+                console.error("Sign out error:", error);
+            }
+        }
+
+        // NEW: Function to start the quiz
+        function startQuiz() {
+            if (authAutoStartTimeoutId) { // Clear any pending auto-start if manually started
+                clearTimeout(authAutoStartTimeoutId);
+                authAutoStartTimeoutId = null;
+            }
+            startScreen.classList.add('hidden'); // Hide the start screen
+            quizArea.classList.remove('hidden'); // Show the quiz area
+            resetQuizStateOnly(); // Reset quiz variables to start a fresh game
+            initializeQuestions(); // Generate new questions for the new game
+            displayQuestion(); // Start displaying the questions
+        }
+
+        // Function to reset quiz variables without immediately starting a new question or changing UI visibility
+        function resetQuizStateOnly() {
+            currentQuestionIndex = 0;
+            score = 0;
+            baseQuestionTime = 10; 
+            bonusSecondsAvailable = 0; 
+            feedback.textContent = '';
+            quizReviewContainer.innerHTML = ''; 
+            getExplanationBtn.classList.add('hidden'); 
+            explanationOutput.classList.add('hidden'); 
+            explanationOutput.innerHTML = ''; 
+            questions = []; // Clear questions array
+            answeredCurrentQuestion = false;
         }
 
         function getRandomNumber(min, max) {
@@ -382,7 +579,7 @@
                 isBonus: false, 
                 userAnswer: null, 
                 isAnswerCorrect: null,
-                timeTaken: null // New: To store time taken for the question
+                timeTaken: null 
             };
         }
 
@@ -437,37 +634,13 @@
                 isBonus: true,
                 userAnswer: null, 
                 isAnswerCorrect: null,
-                timeTaken: null // New: To store time taken for the question
+                timeTaken: null 
             };
-        }
-
-        function initializeQuestions() {
-            questions = [];
-            const generatedKeys = new Set();
-            const bonusQuestionChance = 0.30; 
-
-            for (let i = 0; i < totalQuestions; i++) {
-                let newQuestion;
-                
-                if (Math.random() < bonusQuestionChance) {
-                    newQuestion = generateBonusQuestion();
-                } else {
-                    newQuestion = generateStandardQuestion();
-                }
-
-                const questionKey = `${newQuestion.question}-${newQuestion.answer}`;
-                if (!generatedKeys.has(questionKey)) {
-                    questions.push(newQuestion);
-                    generatedKeys.add(questionKey);
-                } else {
-                    i--; 
-                }
-            }
         }
 
         function startTimer() {
             stopTimer();
-            questionStartTime = Date.now(); // Record the start time of the question
+            questionStartTime = Date.now(); 
             timeLeft = baseQuestionTime + bonusSecondsAvailable; 
             updateTimerDisplay();
 
@@ -491,7 +664,7 @@
 
                     currentQ.userAnswer = 'Time Out';
                     currentQ.isAnswerCorrect = false;
-                    currentQ.timeTaken = (baseQuestionTime + bonusSecondsAvailable).toFixed(1); // All available time used
+                    currentQ.timeTaken = (baseQuestionTime + bonusSecondsAvailable).toFixed(1); 
 
                     baseQuestionTime = Math.max(minQuestionTime, baseQuestionTime - 1);
 
@@ -521,6 +694,7 @@
         }
 
         function displayQuestion() {
+            // This function is now called by startQuiz(), which handles UI visibility
             if (currentQuestionIndex < totalQuestions) { 
                 const currentQ = questions[currentQuestionIndex];
                 questionDisplay.innerHTML = currentQ.question;
@@ -549,7 +723,6 @@
             const userAnswer = parseInt(inputValue, 10);
             const currentQ = questions[currentQuestionIndex];
 
-            // Calculate time taken as soon as answer is submitted
             currentQ.timeTaken = ((Date.now() - questionStartTime) / 1000).toFixed(1); 
 
             if (inputValue === '' || isNaN(userAnswer)) {
@@ -610,7 +783,6 @@
         }
 
         async function getExplanation() {
-            // Use currentQuestionIndex - 1 because we want the explanation for the *just completed* question
             const currentQ = questions[currentQuestionIndex - 1]; 
             if (!currentQ) return;
 
@@ -619,14 +791,13 @@
             explanationOutput.classList.remove('hidden');
             explanationOutput.innerHTML = 'Loading explanation...';
 
-            // Ensure to replace '&times;' with '*' for the prompt to be correctly parsed by LLM
             const questionTextForLLM = currentQ.question.replace(/&times;/g, '*').replace(' = ?', '');
             const prompt = `Provide a simple, step-by-step explanation for the following math problem: "${questionTextForLLM}". The correct answer is ${currentQ.answer}. Make it easy to understand for a student. Focus on how to arrive at the correct answer.`;
 
             let chatHistory = [];
             chatHistory.push({ role: "user", parts: [{ text: prompt }] });
             const payload = { contents: chatHistory };
-            const apiKey = ""; // Canvas provides this automatically at runtime
+            const apiKey = ""; 
             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
             try {
@@ -705,20 +876,17 @@
             populateQuizReview(); 
         }
 
+        // Main reset function now called by 'Play Again'
         function resetQuiz() {
-            currentQuestionIndex = 0;
-            score = 0;
-            baseQuestionTime = 10; 
-            bonusSecondsAvailable = 0; 
-            feedback.textContent = '';
-            quizReviewContainer.innerHTML = ''; 
-            getExplanationBtn.classList.add('hidden'); 
-            explanationOutput.classList.add('hidden'); 
-            explanationOutput.innerHTML = ''; 
-            initializeQuestions();
-            displayQuestion();
+            resetQuizStateOnly(); // Clear quiz variables
+            startScreen.classList.remove('hidden'); // Go back to start screen
+            quizArea.classList.add('hidden'); // Hide quiz area
+            resultsArea.classList.add('hidden'); // Hide results area
+            // Auth state listener will ensure login/logout section is correctly shown
+            // displayQuestion will be called by startQuiz()
         }
 
+        // Event Listeners for Quiz
         answerInput.addEventListener('input', () => {
             clearTimeout(debounceTimeoutId);
             const inputValue = answerInput.value.trim();
@@ -745,12 +913,24 @@
         getExplanationBtn.addEventListener('click', getExplanation); 
         restartBtn.addEventListener('click', resetQuiz);
 
+        // Event Listeners for Login/Logout
+        signupBtn.addEventListener('click', handleSignUp);
+        signinBtn.addEventListener('click', handleSignIn);
+        logoutBtn.addEventListener('click', handleSignOut);
+        loginPasswordInput.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                handleSignIn();
+            }
+        });
+
+        // NEW: Event listener for the Start Quiz button
+        startQuizBtn.addEventListener('click', startQuiz);
+
+
         window.onload = async function() {
-            initializeQuestions();
             document.getElementById('max-questions').textContent = totalQuestions;
             document.getElementById('total-questions').textContent = totalQuestions;
-            await authenticateAndLoadData();
-            displayQuestion();
+            await authenticateAndLoadData(); 
         };
     </script>
 </body>
