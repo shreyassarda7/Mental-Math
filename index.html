@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Multiplication Quiz Master</title>
+    <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
     <style>
@@ -88,6 +89,24 @@
         .review-text-incorrect {
             @apply text-red-700 font-semibold;
         }
+        #explanation-output {
+            @apply mt-4 p-4 bg-blue-50 rounded-lg text-sm text-gray-700 max-h-48 overflow-y-auto;
+        }
+        .loading-spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            vertical-align: middle;
+            margin-right: 8px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body>
@@ -111,6 +130,9 @@
             
             <input type="number" id="answer-input" class="input-field mb-4" placeholder="Your Answer" autofocus>
             <div id="feedback" class="text-feedback"></div>
+
+            <button id="get-explanation-btn" class="btn-primary mt-4 hidden">Get Explanation ✨</button>
+            <div id="explanation-output" class="hidden"></div>
         </div>
 
         <div id="results-area" class="hidden text-center w-full">
@@ -129,13 +151,10 @@
     <audio id="timeout-sound" src="https://assets.mixkit.co/sfx/preview/mixkit-wrong-answer-fail-notification-946.mp3"></audio>
 
     <script type="module">
-        // Step 1: Bring in Firebase's magic tools!
-        // We need special tools to talk to Firebase, like a phone to call the "brain" and a pen to write in the "notebook".
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // DOM element references (these are like labels for different parts of our game)
         const questionDisplay = document.getElementById('question-display');
         const answerInput = document.getElementById('answer-input'); 
         const feedback = document.getElementById('feedback');
@@ -151,8 +170,9 @@
         const bestScoreDisplay = document.getElementById('best-score-display'); 
         const quizReviewContainer = document.getElementById('quiz-review-container'); 
         const timeoutSound = document.getElementById('timeout-sound'); 
+        const getExplanationBtn = document.getElementById('get-explanation-btn'); 
+        const explanationOutput = document.getElementById('explanation-output'); 
 
-        // Quiz state variables (these keep track of how the game is doing)
         let currentQuestionIndex = 0;
         let score = 0;
         const totalQuestions = 20;
@@ -160,43 +180,44 @@
         let answeredCurrentQuestion = false;
         let bestScore = 0; 
 
-        // Timer related variables
         let timerInterval;
         let timeLeft;
         let baseQuestionTime = 10; 
-        let bonusSecondsAvailable = 0; // New: Bonus time counter
-        const minQuestionTime = 7; // Changed: Minimum base time is now 7 seconds
-        const maxBonusSeconds = 10; // Maximum bonus seconds that can be accumulated
-        const feedbackDisplayTime = 1500; // Time to show feedback before auto-advancing
+        let bonusSecondsAvailable = 0; 
+        const minQuestionTime = 7; 
+        const maxBonusSeconds = 10; 
+        const feedbackDisplayTime = 1500; 
         let nextQuestionTimeoutId; 
-        let debounceTimeoutId; // New: For auto-submission debounce
+        let debounceTimeoutId; 
+        let questionStartTime; // New: To track when a question starts
 
-        // Firebase variables (these will hold our connection to the "brain" and "notebook")
         let db;
         let auth;
-        let userId;
-        
+        let userId; 
+
+        // PASTE YOUR ACTUAL FIREBASE CONFIG HERE
+        // Example (REPLACE with your actual values from Firebase Console):
         const firebaseConfig = {
-            apiKey: "AIzaSyDi85CcD0W1EI0QJSY6idJfYYYAEnD-FEc",
-            authDomain: "mental-math-496b1.firebaseapp.com",
-            projectId: "mental-math-496b1",
-            storageBucket: "mental-math-496b1.firebasestorage.app",
-            messagingSenderId: "54681836669",
-            appId: "1:54681836669:web:85eb71a12614953b836514",
-            measurementId: "G-SCVYX2PEYT"
+            apiKey: "YOUR_API_KEY", // Replace with your actual API key
+            authDomain: "YOUR_PROJECT_ID.firebaseapp.com", // Replace with your actual auth domain
+            projectId: "YOUR_PROJECT_ID", // Replace with your actual project ID
+            storageBucket: "YOUR_PROJECT_ID.appspot.com", // Replace with your actual storage bucket
+            messagingSenderId: "YOUR_MESSAGING_SENDER_ID", // Replace with your actual messaging sender ID
+            appId: "YOUR_APP_ID", // Replace with your actual app ID
+            measurementId: "YOUR_MEASUREMENT_ID" // Replace with your actual measurement ID (optional)
         };
         const appId = firebaseConfig.projectId; // Use the projectId from your config as the appId
 
-        let app; // Declare app variable here
+
+        let app;
         try {
-            app = initializeApp(firebaseConfig); // Initialize the core Firebase app
-            db = getFirestore(app); // Initialize Firestore
-            auth = getAuth(app);    // Initialize Auth
+            app = initializeApp(firebaseConfig); 
+            db = getFirestore(app); 
+            auth = getAuth(app);    
             console.log("Firebase initialized successfully.");
         } catch (error) {
             console.error("Error initializing Firebase:", error);
             userIdDisplay.textContent = 'Firebase Init Error!';
-            // Fallback or disable features if Firebase fails to initialize
             db = null;
             auth = null;
         }
@@ -360,7 +381,8 @@
                 options: shuffledOptions, 
                 isBonus: false, 
                 userAnswer: null, 
-                isAnswerCorrect: null 
+                isAnswerCorrect: null,
+                timeTaken: null // New: To store time taken for the question
             };
         }
 
@@ -414,7 +436,8 @@
                 options: shuffledOptions, 
                 isBonus: true,
                 userAnswer: null, 
-                isAnswerCorrect: null 
+                isAnswerCorrect: null,
+                timeTaken: null // New: To store time taken for the question
             };
         }
 
@@ -444,13 +467,15 @@
 
         function startTimer() {
             stopTimer();
-            // Total time for the current question includes base time plus accumulated bonus time
+            questionStartTime = Date.now(); // Record the start time of the question
             timeLeft = baseQuestionTime + bonusSecondsAvailable; 
             updateTimerDisplay();
 
-            // Clear the input field and focus it for the new question
             answerInput.value = '';
-            disableInput(false); // Enable input at start of question
+            disableInput(false); 
+            getExplanationBtn.classList.add('hidden'); 
+            explanationOutput.classList.add('hidden'); 
+            explanationOutput.innerHTML = ''; 
             answerInput.focus();
 
             timerInterval = setInterval(() => {
@@ -466,12 +491,12 @@
 
                     currentQ.userAnswer = 'Time Out';
                     currentQ.isAnswerCorrect = false;
+                    currentQ.timeTaken = (baseQuestionTime + bonusSecondsAvailable).toFixed(1); // All available time used
 
-                    // Decrease base time for next questions if time runs out, but not below minQuestionTime
                     baseQuestionTime = Math.max(minQuestionTime, baseQuestionTime - 1);
-                    // Bonus seconds are NOT affected by timeout
 
-                    disableInput(true); // Disable input on timeout
+                    disableInput(true); 
+                    getExplanationBtn.classList.remove('hidden'); 
                     nextQuestionTimeoutId = setTimeout(nextQuestion, feedbackDisplayTime); 
                 }
             }, 1000);
@@ -484,7 +509,7 @@
 
         function updateTimerDisplay() {
             timerDisplay.textContent = timeLeft;
-            const initialTimeForProgress = baseQuestionTime + bonusSecondsAvailable; // Total time originally given
+            const initialTimeForProgress = baseQuestionTime + bonusSecondsAvailable; 
             const progressPercentage = (timeLeft / initialTimeForProgress) * 100;
             timerProgressBar.style.width = `${progressPercentage}%`;
 
@@ -510,7 +535,6 @@
             }
         }
 
-        // Renamed function to reflect removal of submit button
         function disableInput(shouldDisable) {
             answerInput.disabled = shouldDisable;
         }
@@ -525,17 +549,19 @@
             const userAnswer = parseInt(inputValue, 10);
             const currentQ = questions[currentQuestionIndex];
 
-            // Validate input: must not be empty and must be a valid number
+            // Calculate time taken as soon as answer is submitted
+            currentQ.timeTaken = ((Date.now() - questionStartTime) / 1000).toFixed(1); 
+
             if (inputValue === '' || isNaN(userAnswer)) {
                 feedback.textContent = 'Please enter a number!';
                 feedback.className = 'text-feedback text-red-600';
                 timeoutSound.play(); 
-                // Invalid input still counts as a 'wrong' attempt in terms of bonus time, but not a 'timeout'
-                bonusSecondsAvailable = 0; // Invalid input also resets bonus
+                bonusSecondsAvailable = 0; 
                 currentQ.userAnswer = inputValue === '' ? 'No Input' : 'Invalid Input'; 
                 currentQ.isAnswerCorrect = false;
-                baseQuestionTime = Math.max(minQuestionTime, baseQuestionTime - 1); // Penalize base time for invalid input
+                baseQuestionTime = Math.max(minQuestionTime, baseQuestionTime - 1); 
                 disableInput(true);
+                getExplanationBtn.classList.remove('hidden'); 
                 nextQuestionTimeoutId = setTimeout(nextQuestion, feedbackDisplayTime); 
                 return;
             }
@@ -548,31 +574,28 @@
                 score++;
                 currentQ.isAnswerCorrect = true; 
 
-                // Correct answer adds 1 second to bonus time, up to maxBonusSeconds
                 bonusSecondsAvailable = Math.min(maxBonusSeconds, bonusSecondsAvailable + 1); 
                 
             } else {
                 feedback.textContent = `Incorrect. The answer was ${currentQ.answer}.`;
                 feedback.className = 'text-feedback text-red-600';
                 timeoutSound.play(); 
-                // Incorrect answer resets bonus time to 0
                 bonusSecondsAvailable = 0; 
                 currentQ.isAnswerCorrect = false; 
                 baseQuestionTime = Math.max(minQuestionTime, baseQuestionTime - 1);
             }
 
             scoreDisplay.textContent = score;
-            disableInput(true); // Disable input after answer
+            disableInput(true); 
+            getExplanationBtn.classList.remove('hidden'); 
             nextQuestionTimeoutId = setTimeout(nextQuestion, feedbackDisplayTime); 
         }
 
         function nextQuestion() {
-            // Clear any pending timeout for next question if this function is called manually
             if (nextQuestionTimeoutId) {
                 clearTimeout(nextQuestionTimeoutId);
                 nextQuestionTimeoutId = null;
             }
-            // Clear any pending auto-submit debounce
             if (debounceTimeoutId) {
                 clearTimeout(debounceTimeoutId);
                 debounceTimeoutId = null;
@@ -585,6 +608,53 @@
                 endQuiz();
             }
         }
+
+        async function getExplanation() {
+            // Use currentQuestionIndex - 1 because we want the explanation for the *just completed* question
+            const currentQ = questions[currentQuestionIndex - 1]; 
+            if (!currentQ) return;
+
+            getExplanationBtn.disabled = true;
+            getExplanationBtn.innerHTML = '<span class="loading-spinner"></span> Getting Explanation...';
+            explanationOutput.classList.remove('hidden');
+            explanationOutput.innerHTML = 'Loading explanation...';
+
+            // Ensure to replace '&times;' with '*' for the prompt to be correctly parsed by LLM
+            const questionTextForLLM = currentQ.question.replace(/&times;/g, '*').replace(' = ?', '');
+            const prompt = `Provide a simple, step-by-step explanation for the following math problem: "${questionTextForLLM}". The correct answer is ${currentQ.answer}. Make it easy to understand for a student. Focus on how to arrive at the correct answer.`;
+
+            let chatHistory = [];
+            chatHistory.push({ role: "user", parts: [{ text: prompt }] });
+            const payload = { contents: chatHistory };
+            const apiKey = ""; // Canvas provides this automatically at runtime
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+
+            try {
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const result = await response.json();
+
+                if (result.candidates && result.candidates.length > 0 &&
+                    result.candidates[0].content && result.candidates[0].content.parts &&
+                    result.candidates[0].content.parts.length > 0) {
+                    const text = result.candidates[0].content.parts[0].text;
+                    explanationOutput.innerHTML = text;
+                } else {
+                    explanationOutput.innerHTML = 'Could not get an explanation. Please try again.';
+                    console.error("Gemini API response structure unexpected:", result);
+                }
+            } catch (error) {
+                explanationOutput.innerHTML = 'Error fetching explanation. Please try again.';
+                console.error("Error calling Gemini API:", error);
+            } finally {
+                getExplanationBtn.disabled = false;
+                getExplanationBtn.innerHTML = 'Get Explanation ✨';
+            }
+        }
+
 
         function populateQuizReview() {
             quizReviewContainer.innerHTML = ''; 
@@ -605,13 +675,16 @@
                 correctAnswerText.innerHTML = `Correct Answer: <span class="font-semibold">${q.answer}</span>`;
                 reviewItem.appendChild(correctAnswerText);
 
+                const timeTakenText = document.createElement('p');
+                timeTakenText.innerHTML = `Time Taken: <span class="font-semibold">${q.timeTaken !== null ? q.timeTaken + 's' : 'N/A'}</span>`;
+                reviewItem.appendChild(timeTakenText);
+
                 quizReviewContainer.appendChild(reviewItem);
             });
         }
 
         function endQuiz() {
             stopTimer();
-            // Clear any pending timeouts when quiz ends
             if (nextQuestionTimeoutId) {
                 clearTimeout(nextQuestionTimeoutId);
                 nextQuestionTimeoutId = null;
@@ -620,6 +693,9 @@
                 clearTimeout(debounceTimeoutId);
                 debounceTimeoutId = null;
             }
+            getExplanationBtn.classList.add('hidden'); 
+            explanationOutput.classList.add('hidden'); 
+            explanationOutput.innerHTML = ''; 
 
             quizArea.classList.add('hidden');
             resultsArea.classList.remove('hidden');
@@ -633,32 +709,31 @@
             currentQuestionIndex = 0;
             score = 0;
             baseQuestionTime = 10; 
-            bonusSecondsAvailable = 0; // Reset bonus time on new game
+            bonusSecondsAvailable = 0; 
             feedback.textContent = '';
             quizReviewContainer.innerHTML = ''; 
+            getExplanationBtn.classList.add('hidden'); 
+            explanationOutput.classList.add('hidden'); 
+            explanationOutput.innerHTML = ''; 
             initializeQuestions();
             displayQuestion();
         }
 
-        // Auto-submit on input change with debounce
         answerInput.addEventListener('input', () => {
             clearTimeout(debounceTimeoutId);
             const inputValue = answerInput.value.trim();
-            // Only auto-submit if the input is not empty and represents a valid number
             if (inputValue !== '' && !isNaN(inputValue)) { 
                 debounceTimeoutId = setTimeout(() => {
-                    // Only check answer if not already answered for this question
                     if (!answeredCurrentQuestion) {
                         checkAnswer();
                     }
-                }, 700); // Debounce for 700ms
+                }, 700); 
             }
         });
 
-        // Event Listener for Enter key (still allows immediate submission)
         answerInput.addEventListener('keydown', (event) => {
             if (event.key === 'Enter') {
-                clearTimeout(debounceTimeoutId); // Clear debounce if Enter is pressed for immediate submission
+                clearTimeout(debounceTimeoutId); 
                 if (answeredCurrentQuestion) { 
                     nextQuestion(); 
                 } else { 
@@ -667,6 +742,7 @@
             }
         });
 
+        getExplanationBtn.addEventListener('click', getExplanation); 
         restartBtn.addEventListener('click', resetQuiz);
 
         window.onload = async function() {
