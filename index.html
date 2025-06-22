@@ -187,12 +187,18 @@
         };
         const appId = firebaseConfig.projectId; // Use the projectId from your config as the appId
 
-        if (Object.keys(firebaseConfig).length > 0) {
-            const app = initializeApp(firebaseConfig);
-            db = getFirestore(app); 
-            auth = getAuth(app);   
-        } else {
-            console.error("Firebase config not found. Persistence will not work.");
+        let app; // Declare app variable here
+        try {
+            app = initializeApp(firebaseConfig); // Initialize the core Firebase app
+            db = getFirestore(app); // Initialize Firestore
+            auth = getAuth(app);    // Initialize Auth
+            console.log("Firebase initialized successfully.");
+        } catch (error) {
+            console.error("Error initializing Firebase:", error);
+            userIdDisplay.textContent = 'Firebase Init Error!';
+            // Fallback or disable features if Firebase fails to initialize
+            db = null;
+            auth = null;
         }
 
         async function authenticateAndLoadData() {
