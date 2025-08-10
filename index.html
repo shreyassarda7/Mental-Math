@@ -134,6 +134,7 @@
             </div>
 
             <button id="start-quiz-btn" class="btn-primary mt-8 hidden">Start Quiz</button>
+            <button id="view-history-btn" class="btn-primary mt-4 hidden">View History</button>
              <p id="loading-auth-message" class="text-gray-600 mt-4">Loading authentication...</p>
         </div>
         <!-- END NEW: Start Screen/Login Section Container -->
@@ -153,9 +154,6 @@
             
             <input type="number" id="answer-input" class="input-field mb-4" placeholder="Your Answer" autofocus>
             <div id="feedback" class="text-feedback"></div>
-
-            <button id="get-explanation-btn" class="btn-primary mt-4 hidden">Get Explanation ✨</button>
-            <div id="explanation-output" class="hidden"></div>
         </div>
 
         <div id="results-area" class="hidden text-center w-full">
@@ -167,7 +165,18 @@
             <div id="quiz-review-container" class="w-full text-left max-h-96 overflow-y-auto pr-2">
                 </div>
 
+            <button id="get-explanation-btn" class="btn-primary mt-4">Get Explanation ✨</button>
+            <div id="explanation-output" class="mt-4 p-4 bg-blue-50 rounded-lg text-sm text-gray-700 max-h-48 overflow-y-auto hidden"></div>
+
             <button id="restart-btn" class="btn-primary mt-8">Play Again</button>
+        </div>
+
+        <div id="history-area" class="hidden text-center w-full">
+            <h2 class="text-3xl sm:text-4xl font-bold text-gray-800 mb-4">Quiz History</h2>
+            <div id="history-container" class="w-full text-left max-h-96 overflow-y-auto pr-2 mb-6">
+                <!-- History items will be populated here -->
+            </div>
+            <button id="back-to-start-btn" class="btn-primary">Back to Start</button>
         </div>
     </div>
 
@@ -176,7 +185,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, setDoc, getDoc, addDoc, collection, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // DOM element references
         const questionDisplay = document.getElementById('question-display');
@@ -196,6 +205,12 @@
         const timeoutSound = document.getElementById('timeout-sound'); 
         const getExplanationBtn = document.getElementById('get-explanation-btn'); 
         const explanationOutput = document.getElementById('explanation-output'); 
+
+        // History UI Elements
+        const viewHistoryBtn = document.getElementById('view-history-btn');
+        const historyArea = document.getElementById('history-area');
+        const historyContainer = document.getElementById('history-container');
+        const backToStartBtn = document.getElementById('back-to-start-btn');
 
         // Login/Logout UI Elements
         const startScreen = document.getElementById('start-screen'); // Reference to the start screen container
@@ -278,8 +293,10 @@
                 loadingAuthMessage.classList.add('hidden'); // Hide loading message once auth state is known
                 if (app) { // Only show start button if Firebase core app is initialized
                     startQuizBtn.classList.remove('hidden'); // Show start quiz button
+                    viewHistoryBtn.classList.remove('hidden'); // Show view history button
                 } else {
                     startQuizBtn.classList.add('hidden'); // Keep hidden if Firebase init failed
+                    viewHistoryBtn.classList.add('hidden'); // Keep hidden if Firebase init failed
                 }
 
 
@@ -386,6 +403,130 @@
             }
         }
 
+        async function saveQuizSession() {
+            if (!db || !userId) return;
+            
+            try {
+                const sessionData = {
+                    sessionId: crypto.randomUUID(),
+                    timestamp: new Date().toISOString(),
+                    finalScore: score,
+                    totalQuestions: totalQuestions,
+                    questions: questions.map(q => ({
+                        question: q.question,
+                        correctAnswer: q.answer,
+                        userAnswer: q.userAnswer,
+                        isCorrect: q.isAnswerCorrect,
+                        timeTaken: q.timeTaken,
+                        type: q.type || 'standard'
+                    }))
+                };
+
+                const quizHistoryRef = collection(db, 'artifacts', appId, 'users', userId, 'quizData', 'quizHistory');
+                await addDoc(quizHistoryRef, sessionData);
+                console.log('Quiz session saved successfully');
+            } catch (error) {
+                console.error('Error saving quiz session:', error);
+            }
+        }
+
+        function showHistory() {
+            startScreen.classList.add('hidden');
+            quizArea.classList.add('hidden');
+            resultsArea.classList.add('hidden');
+            historyArea.classList.remove('hidden');
+            loadQuizHistory();
+        }
+
+        function hideHistory() {
+            historyArea.classList.add('hidden');
+            startScreen.classList.remove('hidden');
+        }
+
+        async function loadQuizHistory() {
+            if (!db || !userId) {
+                historyContainer.innerHTML = '<p class="text-gray-600">Cannot load history: not authenticated</p>';
+                return;
+            }
+
+            try {
+                const quizHistoryRef = collection(db, 'artifacts', appId, 'users', userId, 'quizData', 'quizHistory');
+                const q = query(quizHistoryRef, orderBy('timestamp', 'desc'));
+                
+                onSnapshot(q, (snapshot) => {
+                    if (snapshot.empty) {
+                        historyContainer.innerHTML = '<p class="text-gray-600">No quiz history found. Complete a quiz to see your results here!</p>';
+                        return;
+                    }
+
+                    historyContainer.innerHTML = '';
+                    snapshot.forEach((doc) => {
+                        const session = doc.data();
+                        const historyItem = document.createElement('div');
+                        historyItem.className = 'bg-gray-50 p-4 rounded-lg mb-3 cursor-pointer hover:bg-gray-100 transition-colors';
+                        
+                        const date = new Date(session.timestamp).toLocaleDateString();
+                        const time = new Date(session.timestamp).toLocaleTimeString();
+                        
+                        historyItem.innerHTML = `
+                            <div class="flex justify-between items-center">
+                                <div>
+                                    <p class="font-semibold text-gray-800">${date} at ${time}</p>
+                                    <p class="text-gray-600">Score: ${session.finalScore}/${session.totalQuestions}</p>
+                                </div>
+                                <div class="text-right">
+                                    <span class="text-sm text-gray-500">Click to view details</span>
+                                </div>
+                            </div>
+                        `;
+                        
+                        historyItem.addEventListener('click', () => showSessionDetails(session));
+                        historyContainer.appendChild(historyItem);
+                    });
+                });
+            } catch (error) {
+                console.error('Error loading quiz history:', error);
+                historyContainer.innerHTML = '<p class="text-red-600">Error loading history. Please try again.</p>';
+            }
+        }
+
+        function showSessionDetails(session) {
+            // Create a detailed view of the session
+            const detailsHTML = `
+                <div class="bg-white p-6 rounded-lg shadow-lg max-w-2xl mx-auto">
+                    <h3 class="text-2xl font-bold text-gray-800 mb-4">Quiz Session Details</h3>
+                    <p class="text-lg text-gray-700 mb-4">Date: ${new Date(session.timestamp).toLocaleString()}</p>
+                    <p class="text-xl font-semibold text-gray-800 mb-6">Final Score: ${session.finalScore}/${session.totalQuestions}</p>
+                    
+                    <div class="max-h-96 overflow-y-auto">
+                        ${session.questions.map((q, index) => `
+                            <div class="bg-gray-50 p-3 rounded mb-2 ${q.isCorrect ? 'border-l-4 border-green-500' : 'border-l-4 border-red-500'}">
+                                <p class="font-semibold">Q${index + 1}: ${q.question}</p>
+                                <p class="text-sm text-gray-600">Your Answer: <span class="${q.isCorrect ? 'text-green-600' : 'text-red-600'}">${q.userAnswer}</span></p>
+                                <p class="text-sm text-gray-600">Correct Answer: ${q.correctAnswer}</p>
+                                <p class="text-sm text-gray-500">Time: ${q.timeTaken}s</p>
+                            </div>
+                        `).join('')}
+                    </div>
+                    
+                    <button onclick="this.parentElement.remove()" class="btn-primary mt-4">Close</button>
+                </div>
+            `;
+            
+            // Create overlay and show details
+            const overlay = document.createElement('div');
+            overlay.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+            overlay.innerHTML = detailsHTML;
+            document.body.appendChild(overlay);
+            
+            // Close on overlay click
+            overlay.addEventListener('click', (e) => {
+                if (e.target === overlay) {
+                    overlay.remove();
+                }
+            });
+        }
+
         // Authentication functions
         async function handleSignUp() {
             const email = loginEmailInput.value;
@@ -448,6 +589,7 @@
                 startScreen.classList.remove('hidden');
                 quizArea.classList.add('hidden');
                 resultsArea.classList.add('hidden');
+                historyArea.classList.add('hidden');
                 resetQuizStateOnly(); // Reset quiz variables without displaying question
             } catch (error) {
                 feedback.textContent = `Error logging out: ${error.message}`;
@@ -482,6 +624,42 @@
             explanationOutput.innerHTML = ''; 
             questions = []; // Clear questions array
             answeredCurrentQuestion = false;
+        }
+
+        // Function to initialize and generate all questions for the quiz
+        function initializeQuestions() {
+            questions = [];
+            for (let i = 0; i < totalQuestions; i++) {
+                // Dynamic difficulty: every 5 questions, introduce harder question types
+                const difficultyLevel = Math.floor(i / 5);
+                
+                if (i < 10) {
+                    // First 10 questions: basic operations
+                    questions.push(generateStandardQuestion());
+                } else if (i < 15) {
+                    // Questions 11-15: introduce double-digit multiplication
+                    if (Math.random() < 0.6) {
+                        questions.push(generateDoubleDigitMultiplication());
+                    } else {
+                        questions.push(generateStandardQuestion());
+                    }
+                } else if (i < 18) {
+                    // Questions 16-18: introduce division with remainder
+                    if (Math.random() < 0.6) {
+                        questions.push(generateDivisionWithRemainder());
+                    } else {
+                        questions.push(generateStandardQuestion());
+                    }
+                } else {
+                    // Questions 19-20: introduce fractions and bonus questions
+                    if (Math.random() < 0.5) {
+                        questions.push(generateFractionQuestion());
+                    } else {
+                        questions.push(generateBonusQuestion());
+                    }
+                }
+            }
+            console.log(`Generated ${questions.length} questions for the quiz with dynamic difficulty`);
         }
 
         function getRandomNumber(min, max) {
@@ -542,6 +720,120 @@
                 value = num * num * num;
             }
             return { text, value };
+        }
+
+        /**
+         * Generates a double-digit multiplication question
+         * @returns {object} Question object
+         */
+        function generateDoubleDigitMultiplication() {
+            const num1 = getRandomNumber(10, 99);
+            const num2 = getRandomNumber(10, 99);
+            const questionString = `${num1} &times; ${num2} = ?`;
+            const correctAnswer = num1 * num2;
+            
+            const options = new Set();
+            options.add(correctAnswer);
+            generateIncorrectOptions(correctAnswer).forEach(opt => options.add(opt));
+            
+            const shuffledOptions = shuffleArray(Array.from(options));
+            return {
+                question: questionString,
+                answer: correctAnswer,
+                options: shuffledOptions,
+                isBonus: false,
+                userAnswer: null,
+                isAnswerCorrect: null,
+                timeTaken: null,
+                type: 'double-digit-multiplication'
+            };
+        }
+
+        /**
+         * Generates a division with remainder question
+         * @returns {object} Question object
+         */
+        function generateDivisionWithRemainder() {
+            const divisor = getRandomNumber(2, 20);
+            const quotient = getRandomNumber(5, 50);
+            const remainder = getRandomNumber(0, divisor - 1);
+            const dividend = divisor * quotient + remainder;
+            
+            const questionString = `${dividend} &divide; ${divisor} = ?`;
+            const correctAnswer = `${quotient} R ${remainder}`;
+            
+            // Generate incorrect options
+            const incorrectOptions = [];
+            incorrectOptions.push(`${quotient + 1} R ${remainder}`);
+            incorrectOptions.push(`${quotient} R ${remainder + 1}`);
+            incorrectOptions.push(`${quotient - 1} R ${remainder}`);
+            
+            const options = [correctAnswer, ...incorrectOptions];
+            const shuffledOptions = shuffleArray(options);
+            
+            return {
+                question: questionString,
+                answer: correctAnswer,
+                options: shuffledOptions,
+                isBonus: false,
+                userAnswer: null,
+                isAnswerCorrect: null,
+                timeTaken: null,
+                type: 'division-remainder'
+            };
+        }
+
+        /**
+         * Generates a fraction addition/subtraction question
+         * @returns {object} Question object
+         */
+        function generateFractionQuestion() {
+            const denom1 = getRandomNumber(2, 8);
+            const num1 = getRandomNumber(1, denom1 - 1);
+            const denom2 = getRandomNumber(2, 8);
+            const num2 = getRandomNumber(1, denom2 - 1);
+            
+            const operation = Math.random() < 0.5 ? '+' : '-';
+            let questionString, correctAnswer;
+            
+            if (operation === '+') {
+                questionString = `${num1}/${denom1} + ${num2}/${denom2} = ?`;
+                const lcm = (denom1 * denom2) / gcd(denom1, denom2);
+                const newNum1 = (num1 * lcm) / denom1;
+                const newNum2 = (num2 * lcm) / denom2;
+                const resultNum = newNum1 + newNum2;
+                correctAnswer = (resultNum / lcm).toFixed(3);
+            } else {
+                questionString = `${num1}/${denom1} - ${num2}/${denom2} = ?`;
+                const lcm = (denom1 * denom2) / gcd(denom1, denom2);
+                const newNum1 = (num1 * lcm) / denom1;
+                const newNum2 = (num2 * lcm) / denom2;
+                const resultNum = newNum1 - newNum2;
+                correctAnswer = (resultNum / lcm).toFixed(3);
+            }
+            
+            const options = new Set();
+            options.add(parseFloat(correctAnswer));
+            generateIncorrectOptions(parseFloat(correctAnswer)).forEach(opt => options.add(opt));
+            
+            const shuffledOptions = shuffleArray(Array.from(options));
+            return {
+                question: questionString,
+                answer: parseFloat(correctAnswer),
+                options: shuffledOptions,
+                isBonus: false,
+                userAnswer: null,
+                isAnswerCorrect: null,
+                timeTaken: null,
+                type: 'fraction'
+            };
+        }
+
+        /**
+         * Helper function to calculate GCD for fraction operations
+         */
+        function gcd(a, b) {
+            return b === 0 ? a : gcd(b, a % b);
         }
 
         function generateStandardQuestion() {
@@ -658,18 +950,17 @@
                 if (timeLeft <= 0) {
                     stopTimer();
                     const currentQ = questions[currentQuestionIndex]; 
-                    feedback.textContent = `Time's up! The answer was ${currentQ.answer}.`;
+                    feedback.textContent = `Time's up! Your answer: ${answerInput.value.trim() || 'No input'}, Correct answer: ${currentQ.answer}`;
                     feedback.className = 'text-feedback text-red-600';
                     timeoutSound.play(); 
 
-                    currentQ.userAnswer = 'Time Out';
+                    currentQ.userAnswer = answerInput.value.trim() || 'Time Out';
                     currentQ.isAnswerCorrect = false;
                     currentQ.timeTaken = (baseQuestionTime + bonusSecondsAvailable).toFixed(1); 
 
                     baseQuestionTime = Math.max(minQuestionTime, baseQuestionTime - 1);
 
                     disableInput(true); 
-                    getExplanationBtn.classList.remove('hidden'); 
                     nextQuestionTimeoutId = setTimeout(nextQuestion, feedbackDisplayTime); 
                 }
             }, 1000);
@@ -734,7 +1025,6 @@
                 currentQ.isAnswerCorrect = false;
                 baseQuestionTime = Math.max(minQuestionTime, baseQuestionTime - 1); 
                 disableInput(true);
-                getExplanationBtn.classList.remove('hidden'); 
                 nextQuestionTimeoutId = setTimeout(nextQuestion, feedbackDisplayTime); 
                 return;
             }
@@ -742,7 +1032,7 @@
             currentQ.userAnswer = userAnswer; 
 
             if (userAnswer === currentQ.answer) {
-                feedback.textContent = 'Correct!';
+                feedback.textContent = `Correct! Your answer: ${userAnswer}`;
                 feedback.className = 'text-feedback text-green-600';
                 score++;
                 currentQ.isAnswerCorrect = true; 
@@ -750,7 +1040,7 @@
                 bonusSecondsAvailable = Math.min(maxBonusSeconds, bonusSecondsAvailable + 1); 
                 
             } else {
-                feedback.textContent = `Incorrect. The answer was ${currentQ.answer}.`;
+                feedback.textContent = `Incorrect. Your answer: ${userAnswer}, Correct answer: ${currentQ.answer}`;
                 feedback.className = 'text-feedback text-red-600';
                 timeoutSound.play(); 
                 bonusSecondsAvailable = 0; 
@@ -760,7 +1050,6 @@
 
             scoreDisplay.textContent = score;
             disableInput(true); 
-            getExplanationBtn.classList.remove('hidden'); 
             nextQuestionTimeoutId = setTimeout(nextQuestion, feedbackDisplayTime); 
         }
 
@@ -872,6 +1161,7 @@
             resultsArea.classList.remove('hidden');
             finalScoreDisplay.textContent = score;
             saveScore();
+            saveQuizSession(); // Save the complete quiz session
             loadBestScore();
             populateQuizReview(); 
         }
@@ -882,6 +1172,7 @@
             startScreen.classList.remove('hidden'); // Go back to start screen
             quizArea.classList.add('hidden'); // Hide quiz area
             resultsArea.classList.add('hidden'); // Hide results area
+            historyArea.classList.add('hidden'); // Hide history area
             // Auth state listener will ensure login/logout section is correctly shown
             // displayQuestion will be called by startQuiz()
         }
@@ -925,6 +1216,10 @@
 
         // NEW: Event listener for the Start Quiz button
         startQuizBtn.addEventListener('click', startQuiz);
+
+        // Event Listeners for History
+        viewHistoryBtn.addEventListener('click', showHistory);
+        backToStartBtn.addEventListener('click', hideHistory);
 
 
         window.onload = async function() {
