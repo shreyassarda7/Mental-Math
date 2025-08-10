@@ -115,6 +115,9 @@
 
         <!-- NEW: Start Screen/Login Section Container -->
         <div id="start-screen" class="w-full text-center">
+            <div id="offline-indicator" class="hidden bg-yellow-100 border border-yellow-400 text-yellow-800 px-4 py-2 rounded-lg mb-4">
+                <span class="font-semibold">⚠️ Offline Mode:</span> Data will be saved locally. Sign in to sync with cloud.
+            </div>
             <p class="text-sm text-gray-500 mb-2">Your ID: <span id="user-id-display" class="font-mono text-xs">Loading...</span></p>
 
             <div id="login-logout-section" class="w-full text-center mt-6 p-4 bg-gray-50 rounded-xl shadow-inner">
@@ -136,6 +139,7 @@
             <button id="start-quiz-btn" class="btn-primary mt-8 hidden">Start Quiz</button>
             <button id="view-history-btn" class="btn-primary mt-4 hidden">View History</button>
              <p id="loading-auth-message" class="text-gray-600 mt-4">Loading authentication...</p>
+            <p id="demo-mode-info" class="text-sm text-gray-500 mt-2 hidden">Demo mode: Using placeholder Firebase config. Replace with real credentials for full functionality.</p>
         </div>
         <!-- END NEW: Start Screen/Login Section Container -->
 
@@ -225,6 +229,8 @@
         const loggedInUserDisplay = document.getElementById('logged-in-user-display');
         const startQuizBtn = document.getElementById('start-quiz-btn'); // Start Quiz Button
         const loadingAuthMessage = document.getElementById('loading-auth-message'); // Loading message
+        const offlineIndicator = document.getElementById('offline-indicator'); // Offline mode indicator
+        const demoModeInfo = document.getElementById('demo-mode-info'); // Demo mode info message
 
 
         // Quiz state variables
@@ -254,43 +260,60 @@
         let userId; // The current user's UID (anonymous or authenticated)
         let currentUser = null; // Stores the Firebase User object
 
-        // PASTE YOUR ACTUAL FIREBASE CONFIG HERE
-        // Make sure this is your EXACT config copied from Firebase Project Settings
-        // Example:
+        // Firebase Configuration - Using demo config for now
+        // TODO: Replace with your actual Firebase project credentials
         const firebaseConfig = {
-            apiKey: "YOUR_API_KEY", // Replace with your actual API key from Firebase Project Settings -> Your apps (Web)
-            authDomain: "YOUR_PROJECT_ID.firebaseapp.com", // Replace with your actual auth domain
-            projectId: "YOUR_PROJECT_ID", // Replace with your actual project ID
-            storageBucket: "YOUR_PROJECT_ID.appspot.com", // Replace with your actual storage bucket
-            messagingSenderId: "YOUR_MESSAGING_SENDER_ID", // Replace with your actual messaging sender ID
-            appId: "YOUR_APP_ID", // Replace with your actual app ID
-            measurementId: "YOUR_MEASUREMENT_ID" // Replace with your actual measurement ID (optional)
+            apiKey: "AIzaSyBxGUhxGjHqjHqjHqjHqjHqjHqjHqjHqjH", // Demo key - replace with your actual API key
+            authDomain: "demo-math-quiz.firebaseapp.com", // Demo domain - replace with your actual auth domain
+            projectId: "demo-math-quiz", // Demo project ID - replace with your actual project ID
+            storageBucket: "demo-math-quiz.appspot.com", // Demo storage bucket - replace with your actual storage bucket
+            messagingSenderId: "123456789012", // Demo sender ID - replace with your actual messaging sender ID
+            appId: "1:123456789012:web:abcdefghijklmnop", // Demo app ID - replace with your actual app ID
+            measurementId: "G-DEMO123456" // Demo measurement ID - replace with your actual measurement ID
         };
-        const appId = firebaseConfig.projectId; // Use the projectId from your config as the appId
+        const appId = "demo-math-quiz"; // Use a fixed appId for demo purposes
 
 
         let app;
+        let firebaseInitialized = false;
+        
         try {
             app = initializeApp(firebaseConfig); 
             db = getFirestore(app); 
             auth = getAuth(app);    
+            firebaseInitialized = true;
             console.log("Firebase initialized successfully.");
         } catch (error) {
             console.error("Error initializing Firebase:", error);
-            userIdDisplay.textContent = 'Firebase Init Error!';
+            console.log("Running in offline/demo mode without Firebase");
+            firebaseInitialized = false;
             db = null;
             auth = null;
-            // Hide login section and show an error if Firebase cannot initialize
-            loginLogoutSection.classList.add('hidden');
-            loadingAuthMessage.textContent = 'Failed to initialize app. Check console for errors.';
-            loadingAuthMessage.classList.remove('hidden');
-            loadingAuthMessage.classList.add('text-red-600');
-            startQuizBtn.classList.add('hidden'); // Ensure start button is hidden if firebase init fails
         }
 
         async function authenticateAndLoadData() {
+            loadingAuthMessage.classList.add('hidden'); // Hide loading message
+            
+            if (!firebaseInitialized) {
+                // Offline mode - generate local user ID and show quiz buttons
+                console.log("Running in offline mode");
+                userId = crypto.randomUUID();
+                currentUser = null;
+                userIdDisplay.textContent = `ID: ${userId.substring(0, 8)}... | Offline Mode`;
+                loggedInUserDisplay.textContent = 'Offline Mode';
+                loginSection.classList.add('hidden');
+                logoutSection.classList.add('hidden');
+                startQuizBtn.classList.remove('hidden');
+                viewHistoryBtn.classList.remove('hidden');
+                offlineIndicator.classList.remove('hidden'); // Show offline indicator
+                demoModeInfo.classList.remove('hidden'); // Show demo mode info
+                return;
+            }
+            
+            // Firebase mode
+            offlineIndicator.classList.add('hidden'); // Hide offline indicator when Firebase is working
+            demoModeInfo.classList.add('hidden'); // Hide demo mode info when Firebase is working
             onAuthStateChanged(auth, async (user) => {
-                loadingAuthMessage.classList.add('hidden'); // Hide loading message once auth state is known
                 if (app) { // Only show start button if Firebase core app is initialized
                     startQuizBtn.classList.remove('hidden'); // Show start quiz button
                     viewHistoryBtn.classList.remove('hidden'); // Show view history button
@@ -298,7 +321,6 @@
                     startQuizBtn.classList.add('hidden'); // Keep hidden if Firebase init failed
                     viewHistoryBtn.classList.add('hidden'); // Keep hidden if Firebase init failed
                 }
-
 
                 if (user) {
                     currentUser = user;
@@ -358,9 +380,24 @@
         }
 
         async function loadBestScore() {
-            if (!db || !userId) {
-                console.warn("Cannot load score: Firebase or User ID not available.");
-                bestScoreDisplay.textContent = 'N/A'; 
+            if (!firebaseInitialized || !db || !userId) {
+                // Offline mode - load from localStorage
+                try {
+                    const storedBest = localStorage.getItem(`bestScore_${userId}`);
+                    if (storedBest) {
+                        bestScore = parseInt(storedBest);
+                        bestScoreDisplay.textContent = bestScore;
+                        console.log(`Loaded best score from localStorage: ${bestScore}`);
+                    } else {
+                        bestScore = 0;
+                        bestScoreDisplay.textContent = bestScore;
+                        console.log(`No best score found for user ${userId}. Starting fresh!`);
+                    }
+                } catch (error) {
+                    console.error(`Error loading from localStorage:`, error);
+                    bestScore = 0;
+                    bestScoreDisplay.textContent = bestScore;
+                }
                 return;
             }
 
@@ -383,8 +420,17 @@
         }
 
         async function saveScore() {
-            if (!db || !userId) {
-                console.warn("Cannot save score: Firebase or User ID not available.");
+            if (!firebaseInitialized || !db || !userId) {
+                // Offline mode - save to localStorage
+                try {
+                    const currentBest = parseInt(localStorage.getItem(`bestScore_${userId}`) || '0');
+                    const newBest = Math.max(currentBest, score);
+                    localStorage.setItem(`bestScore_${userId}`, newBest.toString());
+                    localStorage.setItem(`bestScoreTimestamp_${userId}`, new Date().toISOString());
+                    console.log('Best score saved to localStorage');
+                } catch (error) {
+                    console.error('Error saving to localStorage:', error);
+                }
                 return;
             }
 
@@ -404,7 +450,33 @@
         }
 
         async function saveQuizSession() {
-            if (!db || !userId) return;
+            if (!firebaseInitialized || !db || !userId) {
+                // Offline mode - save to localStorage
+                try {
+                    const sessionData = {
+                        sessionId: crypto.randomUUID(),
+                        timestamp: new Date().toISOString(),
+                        finalScore: score,
+                        totalQuestions: totalQuestions,
+                        questions: questions.map(q => ({
+                            question: q.question,
+                            correctAnswer: q.answer,
+                            userAnswer: q.userAnswer,
+                            isCorrect: q.isAnswerCorrect,
+                            timeTaken: q.timeTaken,
+                            type: q.type || 'standard'
+                        }))
+                    };
+                    
+                    const existingHistory = JSON.parse(localStorage.getItem(`quizHistory_${userId}`) || '[]');
+                    existingHistory.push(sessionData);
+                    localStorage.setItem(`quizHistory_${userId}`, JSON.stringify(existingHistory));
+                    console.log('Quiz session saved to localStorage');
+                } catch (error) {
+                    console.error('Error saving to localStorage:', error);
+                }
+                return;
+            }
             
             try {
                 const sessionData = {
@@ -444,43 +516,40 @@
         }
 
         async function loadQuizHistory() {
-            if (!db || !userId) {
-                historyContainer.innerHTML = '<p class="text-gray-600">Cannot load history: not authenticated</p>';
-                return;
-            }
-
-            try {
-                const quizHistoryRef = collection(db, 'artifacts', appId, 'users', userId, 'quizData', 'quizHistory');
-                const q = query(quizHistoryRef, orderBy('timestamp', 'desc'));
-                
-                onSnapshot(q, (snapshot) => {
-                    if (snapshot.empty) {
-                        historyContainer.innerHTML = '<p class="text-gray-600">No quiz history found. Complete a quiz to see your results here!</p>';
-                        return;
-                    }
-
-                    historyContainer.innerHTML = '';
-                    snapshot.forEach((doc) => {
-                        const session = doc.data();
-                        const historyItem = document.createElement('div');
-                        historyItem.className = 'bg-gray-50 p-4 rounded-lg mb-3 cursor-pointer hover:bg-gray-100 transition-colors';
+            if (!firebaseInitialized || !db || !userId) {
+                // Offline mode - load from localStorage
+                try {
+                    const storedHistory = localStorage.getItem(`quizHistory_${userId}`);
+                    if (storedHistory) {
+                        const history = JSON.parse(storedHistory);
+                        if (history.length === 0) {
+                            historyContainer.innerHTML = '<p class="text-gray-600">No quiz history found. Complete a quiz to see your results here!</p>';
+                            return;
+                        }
                         
-                        const date = new Date(session.timestamp).toLocaleDateString();
-                        const time = new Date(session.timestamp).toLocaleTimeString();
+                        historyContainer.innerHTML = '';
+                        history.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
                         
-                        historyItem.innerHTML = `
-                            <div class="flex justify-between items-center">
-                                <div>
-                                    <p class="font-semibold text-gray-800">${date} at ${time}</p>
-                                    <p class="text-gray-600">Score: ${session.finalScore}/${session.totalQuestions}</p>
+                        history.forEach((session) => {
+                            const historyItem = document.createElement('div');
+                            historyItem.className = 'bg-gray-50 p-4 rounded-lg mb-3 cursor-pointer hover:bg-gray-100 transition-colors';
+                            
+                            const date = new Date(session.timestamp).toLocaleDateString();
+                            const time = new Date(session.timestamp).toLocaleTimeString();
+                            
+                            historyItem.innerHTML = `
+                                <div class="flex justify-between items-center">
+                                    <div>
+                                        <p class="font-semibold text-gray-800">${date} at ${time}</p>
+                                        <p class="text-gray-600">Score: ${session.finalScore}/${session.totalQuestions}</p>
+                                    </div>
+                                    <div class="text-right">
+                                        <span class="text-sm text-gray-500">Click to view details</span>
+                                    </div>
                                 </div>
-                                <div class="text-right">
-                                    <span class="text-sm text-gray-500">Click to view details</span>
-                                </div>
-                            </div>
-                        `;
-                        
-                        historyItem.addEventListener('click', () => showSessionDetails(session));
+                            `;
+                            
+                            historyItem.addEventListener('click', () => showSessionDetails(session));
                         historyContainer.appendChild(historyItem);
                     });
                 });
