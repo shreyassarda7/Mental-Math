@@ -151,11 +151,10 @@
 
             <div id="question-display" class="text-5xl sm:text-6xl font-extrabold text-gray-800 mb-8 leading-tight"></div>
             
-            <input type="number" id="answer-input" class="input-field mb-4" placeholder="Your Answer" autofocus>
+            <input type="text" id="answer-input" class="input-field mb-4" placeholder="Answer (e.g., 221, 11 R 2, 3/4 or 0.75)" autofocus>
             <div id="feedback" class="text-feedback"></div>
 
-            <button id="get-explanation-btn" class="btn-primary mt-4 hidden">Get Explanation ✨</button>
-            <div id="explanation-output" class="hidden"></div>
+            
         </div>
 
         <div id="results-area" class="hidden text-center w-full">
@@ -169,6 +168,14 @@
 
             <button id="restart-btn" class="btn-primary mt-8">Play Again</button>
         </div>
+        <div id="history-area" class="hidden text-center w-full">
+            <h2 class="text-3xl sm:text-4xl font-bold text-gray-800 mb-4">History</h2>
+            <div id="history-list" class="w-full text-left max-h-96 overflow-y-auto pr-2 mb-6"></div>
+            <div id="history-detail" class="w-full text-left max-h-96 overflow-y-auto pr-2 hidden"></div>
+            <div class="flex gap-3 justify-center mt-4">
+                <button id="back-to-start-btn" class="btn-primary">Back</button>
+            </div>
+        </div>
     </div>
 
     <audio id="timeout-sound" src="https://assets.mixkit.co/sfx/preview/mixkit-wrong-answer-fail-notification-946.mp3"></audio>
@@ -176,7 +183,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, setDoc, getDoc, addDoc, collection, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // DOM element references
         const questionDisplay = document.getElementById('question-display');
@@ -194,12 +201,9 @@
         const bestScoreDisplay = document.getElementById('best-score-display'); 
         const quizReviewContainer = document.getElementById('quiz-review-container'); 
         const timeoutSound = document.getElementById('timeout-sound'); 
-        const getExplanationBtn = document.getElementById('get-explanation-btn'); 
-        const explanationOutput = document.getElementById('explanation-output'); 
-
         // Login/Logout UI Elements
-        const startScreen = document.getElementById('start-screen'); // Reference to the start screen container
-        const loginLogoutSection = document.getElementById('login-logout-section'); // Reference to the overall login/logout area
+        const startScreen = document.getElementById('start-screen');
+        const loginLogoutSection = document.getElementById('login-logout-section');
         const loginSection = document.getElementById('login-section');
         const logoutSection = document.getElementById('logout-section');
         const loginEmailInput = document.getElementById('login-email');
@@ -210,6 +214,15 @@
         const loggedInUserDisplay = document.getElementById('logged-in-user-display');
         const startQuizBtn = document.getElementById('start-quiz-btn'); // Start Quiz Button
         const loadingAuthMessage = document.getElementById('loading-auth-message'); // Loading message
+        const viewHistoryBtn = document.createElement('button');
+        viewHistoryBtn.id = 'view-history-btn';
+        viewHistoryBtn.className = 'btn-primary mt-4';
+        viewHistoryBtn.textContent = 'View History';
+        document.getElementById('start-screen').appendChild(viewHistoryBtn);
+        const historyArea = document.getElementById('history-area');
+        const historyList = document.getElementById('history-list');
+        const historyDetail = document.getElementById('history-detail');
+        const backToStartBtn = document.getElementById('back-to-start-btn');
 
 
         // Quiz state variables
@@ -477,9 +490,6 @@
             bonusSecondsAvailable = 0; 
             feedback.textContent = '';
             quizReviewContainer.innerHTML = ''; 
-            getExplanationBtn.classList.add('hidden'); 
-            explanationOutput.classList.add('hidden'); 
-            explanationOutput.innerHTML = ''; 
             questions = []; // Clear questions array
             answeredCurrentQuestion = false;
         }
@@ -646,9 +656,6 @@
 
             answerInput.value = '';
             disableInput(false); 
-            getExplanationBtn.classList.add('hidden'); 
-            explanationOutput.classList.add('hidden'); 
-            explanationOutput.innerHTML = ''; 
             answerInput.focus();
 
             timerInterval = setInterval(() => {
@@ -669,7 +676,6 @@
                     baseQuestionTime = Math.max(minQuestionTime, baseQuestionTime - 1);
 
                     disableInput(true); 
-                    getExplanationBtn.classList.remove('hidden'); 
                     nextQuestionTimeoutId = setTimeout(nextQuestion, feedbackDisplayTime); 
                 }
             }, 1000);
@@ -696,6 +702,10 @@
         function displayQuestion() {
             // This function is now called by startQuiz(), which handles UI visibility
             if (currentQuestionIndex < totalQuestions) { 
+                if (!questions[currentQuestionIndex]) {
+                    const level = 1 + Math.floor(score / 5);
+                    questions[currentQuestionIndex] = generateQuestionByDifficulty(Math.min(level, 4));
+                }
                 const currentQ = questions[currentQuestionIndex];
                 questionDisplay.innerHTML = currentQ.question;
                 feedback.textContent = '';
@@ -720,13 +730,13 @@
             answeredCurrentQuestion = true;
             
             const inputValue = answerInput.value.trim();
-            const userAnswer = parseInt(inputValue, 10);
+            const parsed = parseUserAnswer(inputValue);
             const currentQ = questions[currentQuestionIndex];
 
             currentQ.timeTaken = ((Date.now() - questionStartTime) / 1000).toFixed(1); 
 
-            if (inputValue === '' || isNaN(userAnswer)) {
-                feedback.textContent = 'Please enter a number!';
+            if (!parsed.isValid) {
+                feedback.textContent = 'Please enter a valid answer (e.g., 221, 11 R 2, 3/4 or 0.75).';
                 feedback.className = 'text-feedback text-red-600';
                 timeoutSound.play(); 
                 bonusSecondsAvailable = 0; 
@@ -734,15 +744,14 @@
                 currentQ.isAnswerCorrect = false;
                 baseQuestionTime = Math.max(minQuestionTime, baseQuestionTime - 1); 
                 disableInput(true);
-                getExplanationBtn.classList.remove('hidden'); 
                 nextQuestionTimeoutId = setTimeout(nextQuestion, feedbackDisplayTime); 
                 return;
             }
 
-            currentQ.userAnswer = userAnswer; 
+            currentQ.userAnswer = parsed.display; 
 
-            if (userAnswer === currentQ.answer) {
-                feedback.textContent = 'Correct!';
+            if (answersMatch(parsed, currentQ.correctNormalized)) {
+                feedback.textContent = `Correct! Your answer: ${currentQ.userAnswer}`;
                 feedback.className = 'text-feedback text-green-600';
                 score++;
                 currentQ.isAnswerCorrect = true; 
@@ -750,7 +759,7 @@
                 bonusSecondsAvailable = Math.min(maxBonusSeconds, bonusSecondsAvailable + 1); 
                 
             } else {
-                feedback.textContent = `Incorrect. The answer was ${currentQ.answer}.`;
+                feedback.textContent = `Incorrect. Your answer: ${currentQ.userAnswer}. Correct: ${currentQ.answer}.`;
                 feedback.className = 'text-feedback text-red-600';
                 timeoutSound.play(); 
                 bonusSecondsAvailable = 0; 
@@ -760,7 +769,6 @@
 
             scoreDisplay.textContent = score;
             disableInput(true); 
-            getExplanationBtn.classList.remove('hidden'); 
             nextQuestionTimeoutId = setTimeout(nextQuestion, feedbackDisplayTime); 
         }
 
@@ -782,50 +790,7 @@
             }
         }
 
-        async function getExplanation() {
-            const currentQ = questions[currentQuestionIndex - 1]; 
-            if (!currentQ) return;
-
-            getExplanationBtn.disabled = true;
-            getExplanationBtn.innerHTML = '<span class="loading-spinner"></span> Getting Explanation...';
-            explanationOutput.classList.remove('hidden');
-            explanationOutput.innerHTML = 'Loading explanation...';
-
-            const questionTextForLLM = currentQ.question.replace(/&times;/g, '*').replace(' = ?', '');
-            const prompt = `Provide a simple, step-by-step explanation for the following math problem: "${questionTextForLLM}". The correct answer is ${currentQ.answer}. Make it easy to understand for a student. Focus on how to arrive at the correct answer.`;
-
-            let chatHistory = [];
-            chatHistory.push({ role: "user", parts: [{ text: prompt }] });
-            const payload = { contents: chatHistory };
-            const apiKey = ""; 
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
-
-            try {
-                const response = await fetch(apiUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-                const result = await response.json();
-
-                if (result.candidates && result.candidates.length > 0 &&
-                    result.candidates[0].content && result.candidates[0].content.parts &&
-                    result.candidates[0].content.parts.length > 0) {
-                    const text = result.candidates[0].content.parts[0].text;
-                    explanationOutput.innerHTML = text;
-                } else {
-                    explanationOutput.innerHTML = 'Could not get an explanation. Please try again.';
-                    console.error("Gemini API response structure unexpected:", result);
-                }
-            } catch (error) {
-                explanationOutput.innerHTML = 'Error fetching explanation. Please try again.';
-                console.error("Error calling Gemini API:", error);
-            } finally {
-                getExplanationBtn.disabled = false;
-                getExplanationBtn.innerHTML = 'Get Explanation ✨';
-            }
-        }
-
+        // Removed Gemini explanation button and logic
 
         function populateQuizReview() {
             quizReviewContainer.innerHTML = ''; 
@@ -864,9 +829,6 @@
                 clearTimeout(debounceTimeoutId);
                 debounceTimeoutId = null;
             }
-            getExplanationBtn.classList.add('hidden'); 
-            explanationOutput.classList.add('hidden'); 
-            explanationOutput.innerHTML = ''; 
 
             quizArea.classList.add('hidden');
             resultsArea.classList.remove('hidden');
@@ -874,6 +836,7 @@
             saveScore();
             loadBestScore();
             populateQuizReview(); 
+            saveQuizHistory();
         }
 
         // Main reset function now called by 'Play Again'
@@ -910,7 +873,6 @@
             }
         });
 
-        getExplanationBtn.addEventListener('click', getExplanation); 
         restartBtn.addEventListener('click', resetQuiz);
 
         // Event Listeners for Login/Logout
@@ -925,6 +887,19 @@
 
         // NEW: Event listener for the Start Quiz button
         startQuizBtn.addEventListener('click', startQuiz);
+        viewHistoryBtn.addEventListener('click', () => {
+            startScreen.classList.add('hidden');
+            resultsArea.classList.add('hidden');
+            quizArea.classList.add('hidden');
+            historyArea.classList.remove('hidden');
+            startHistorySubscription();
+        });
+        backToStartBtn.addEventListener('click', () => {
+            stopHistorySubscription();
+            historyArea.classList.add('hidden');
+            historyDetail.classList.add('hidden');
+            startScreen.classList.remove('hidden');
+        });
 
 
         window.onload = async function() {
@@ -932,6 +907,228 @@
             document.getElementById('total-questions').textContent = totalQuestions;
             await authenticateAndLoadData(); 
         };
+
+        // ===== New question types and helpers =====
+        function gcd(a, b) {
+            a = Math.abs(a); b = Math.abs(b);
+            while (b) { const t = b; b = a % b; a = t; }
+            return a || 1;
+        }
+        function reduceFraction(numerator, denominator) {
+            const g = gcd(numerator, denominator);
+            const sign = (numerator * denominator) < 0 ? -1 : 1;
+            return { n: sign * Math.abs(numerator) / g, d: Math.abs(denominator) / g };
+        }
+        function fractionToString(n, d) {
+            const r = reduceFraction(n, d);
+            return `${r.n}/${r.d}`;
+        }
+        function parseUserAnswer(input) {
+            if (!input) return { isValid: false };
+            const trimmed = input.replace(/\s+/g, ' ').trim();
+            // Division with remainder: formats like "11 R 2" or "11r2"
+            const remMatch = trimmed.match(/^(\d+)\s*[Rr]\s*(\d+)$/);
+            if (remMatch) {
+                const q = parseInt(remMatch[1], 10);
+                const r = parseInt(remMatch[2], 10);
+                return { isValid: true, kind: 'remainder', q, r, display: `${q} R ${r}` };
+            }
+            // Fraction
+            const fracMatch = trimmed.match(/^(\-?\d+)\s*\/\s*(\d+)$/);
+            if (fracMatch) {
+                const n = parseInt(fracMatch[1], 10);
+                const d = parseInt(fracMatch[2], 10);
+                if (d === 0) return { isValid: false };
+                const r = reduceFraction(n, d);
+                return { isValid: true, kind: 'fraction', n: r.n, d: r.d, display: `${r.n}/${r.d}` };
+            }
+            // Decimal or integer
+            const num = Number(trimmed);
+            if (!Number.isNaN(num)) {
+                return { isValid: true, kind: 'number', value: num, display: `${num}` };
+            }
+            return { isValid: false };
+        }
+        function answersMatch(parsed, correctNormalized) {
+            if (!parsed || !correctNormalized) return false;
+            if (correctNormalized.kind === 'remainder') {
+                if (parsed.kind === 'remainder') return parsed.q === correctNormalized.q && parsed.r === correctNormalized.r;
+                // Accept decimal equal to q with remainder 0? Keep strict
+                return false;
+            }
+            if (correctNormalized.kind === 'fraction') {
+                if (parsed.kind === 'fraction') return parsed.n === correctNormalized.n && parsed.d === correctNormalized.d;
+                if (parsed.kind === 'number') return Math.abs(parsed.value - (correctNormalized.n / correctNormalized.d)) < 0.01;
+                return false;
+            }
+            // number
+            if (parsed.kind === 'number') return Math.abs(parsed.value - correctNormalized.value) < 0.00001;
+            return false;
+        }
+        function generateDoubleDigitMultiplicationQuestion() {
+            const a = getRandomNumber(10, 19);
+            const b = getRandomNumber(10, 19);
+            const answer = a * b;
+            return {
+                question: `${a} &times; ${b} = ?`,
+                answer: answer,
+                correctNormalized: { kind: 'number', value: answer },
+                isBonus: false,
+                userAnswer: null,
+                isAnswerCorrect: null,
+                timeTaken: null
+            };
+        }
+        function generateDivisionWithRemainderQuestion() {
+            const divisor = getRandomNumber(7, 13);
+            const dividend = getRandomNumber(60, 200);
+            const q = Math.floor(dividend / divisor);
+            const r = dividend % divisor;
+            return {
+                question: `${dividend} / ${divisor} = ?`,
+                answer: `${q} R ${r}`,
+                correctNormalized: { kind: 'remainder', q, r },
+                isBonus: false,
+                userAnswer: null,
+                isAnswerCorrect: null,
+                timeTaken: null
+            };
+        }
+        function generateFractionAddSubQuestion() {
+            const a = getRandomNumber(1, 9);
+            const b = getRandomNumber(2, 12);
+            const c = getRandomNumber(1, 9);
+            const d = getRandomNumber(2, 12);
+            const op = Math.random() < 0.5 ? '+' : '-';
+            const n = op === '+' ? a * d + c * b : a * d - c * b;
+            const denom = b * d;
+            const reduced = reduceFraction(n, denom);
+            return {
+                question: `${a}/${b} ${op} ${c}/${d} = ?`,
+                answer: `${reduced.n}/${reduced.d}`,
+                correctNormalized: { kind: 'fraction', n: reduced.n, d: reduced.d },
+                isBonus: false,
+                userAnswer: null,
+                isAnswerCorrect: null,
+                timeTaken: null
+            };
+        }
+        function wrapStandardQuestion(q) {
+            // Adapt existing standard question to include correctNormalized
+            return {
+                ...q,
+                correctNormalized: { kind: 'number', value: q.answer }
+            };
+        }
+        function generateQuestionByDifficulty(level) {
+            const rnd = Math.random();
+            if (level <= 1) {
+                return wrapStandardQuestion(generateStandardQuestion());
+            }
+            if (level === 2) {
+                return rnd < 0.5 ? generateDoubleDigitMultiplicationQuestion() : wrapStandardQuestion(generateStandardQuestion());
+            }
+            if (level === 3) {
+                if (rnd < 0.34) return generateDoubleDigitMultiplicationQuestion();
+                if (rnd < 0.67) return generateDivisionWithRemainderQuestion();
+                return wrapStandardQuestion(generateStandardQuestion());
+            }
+            // level 4+
+            if (rnd < 0.25) return generateDoubleDigitMultiplicationQuestion();
+            if (rnd < 0.5) return generateDivisionWithRemainderQuestion();
+            if (rnd < 0.75) return generateFractionAddSubQuestion();
+            return wrapStandardQuestion(generateStandardQuestion());
+        }
+
+        function initializeQuestions() {
+            questions = [];
+        }
+
+        async function saveQuizHistory() {
+            if (!db || !userId) return;
+            try {
+                const sessionId = crypto.randomUUID();
+                const session = {
+                    sessionId,
+                    timestamp: new Date().toISOString(),
+                    finalScore: score,
+                    totalQuestions: totalQuestions,
+                    questions: questions.map(q => ({
+                        question: q.question,
+                        correctAnswer: q.answer,
+                        userAnswer: q.userAnswer,
+                        isCorrect: q.isAnswerCorrect,
+                        timeTaken: q.timeTaken
+                    }))
+                };
+                const colRef = collection(db, `artifacts/${appId}/users/${userId}/quizData/quizHistory`);
+                await addDoc(colRef, session);
+                console.log('Quiz history saved');
+            } catch (e) {
+                console.error('Failed to save quiz history', e);
+            }
+        }
+
+        let historyUnsubscribe = null;
+        function startHistorySubscription() {
+            if (!db || !userId) return;
+            if (historyUnsubscribe) historyUnsubscribe();
+            historyList.innerHTML = '';
+            historyDetail.classList.add('hidden');
+            const colRef = collection(db, `artifacts/${appId}/users/${userId}/quizData/quizHistory`);
+            const qy = query(colRef, orderBy('timestamp', 'desc'));
+            historyUnsubscribe = onSnapshot(qy, (snap) => {
+                const items = [];
+                snap.forEach(docSnap => {
+                    const data = docSnap.data();
+                    items.push({ id: docSnap.id, ...data });
+                });
+                renderHistoryList(items);
+            }, (err) => {
+                console.error('History subscription error', err);
+            });
+        }
+        function stopHistorySubscription() {
+            if (historyUnsubscribe) {
+                historyUnsubscribe();
+                historyUnsubscribe = null;
+            }
+        }
+        function renderHistoryList(items) {
+            historyList.innerHTML = '';
+            if (!items.length) {
+                historyList.innerHTML = '<p class="text-gray-600">No history yet.</p>';
+                return;
+            }
+            items.forEach(item => {
+                const row = document.createElement('div');
+                row.className = 'review-item';
+                const ts = new Date(item.timestamp).toLocaleString();
+                row.innerHTML = `<div class="flex justify-between items-center"><div><span class="font-semibold">${ts}</span> — Score: <span class="font-semibold">${item.finalScore}/${item.totalQuestions}</span></div><button class="btn-primary text-sm">View</button></div>`;
+                row.querySelector('button').addEventListener('click', () => renderHistoryDetail(item));
+                historyList.appendChild(row);
+            });
+        }
+        function renderHistoryDetail(session) {
+            historyDetail.classList.remove('hidden');
+            historyDetail.innerHTML = '';
+            const header = document.createElement('div');
+            header.className = 'mb-4';
+            header.innerHTML = `<h3 class="text-2xl font-bold text-gray-800">Session ${new Date(session.timestamp).toLocaleString()}</h3><p class="text-gray-700">Score: <span class="font-semibold">${session.finalScore}/${session.totalQuestions}</span></p>`;
+            historyDetail.appendChild(header);
+            session.questions.forEach((q, idx) => {
+                const reviewItem = document.createElement('div');
+                reviewItem.className = `review-item ${q.isCorrect ? 'correct-answer' : 'incorrect-answer'}`;
+                const html = [
+                    `<p><strong>Q${idx + 1}:</strong> ${q.question.replace(' = ?', '')}</p>`,
+                    `<p>Your Answer: <span class="${q.isCorrect ? 'review-text-correct' : 'review-text-incorrect'}">${q.userAnswer ?? 'Not Answered'}</span></p>`,
+                    `<p>Correct Answer: <span class="font-semibold">${q.correctAnswer}</span></p>`,
+                    `<p>Time Taken: <span class="font-semibold">${q.timeTaken ?? 'N/A'}${q.timeTaken ? 's' : ''}</span></p>`
+                ].join('');
+                reviewItem.innerHTML = html;
+                historyDetail.appendChild(reviewItem);
+            });
+        }
     </script>
 </body>
 </html>
