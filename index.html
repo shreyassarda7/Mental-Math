@@ -187,9 +187,7 @@
     <audio id="timeout-sound" src="https://assets.mixkit.co/sfx/preview/mixkit-wrong-answer-fail-notification-946.mp3"></audio>
 
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, getDoc, addDoc, collection, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        // Firebase imports removed - all operations now go through secure backend API
 
         // DOM element references
         const questionDisplay = document.getElementById('question-display');
@@ -254,47 +252,44 @@
         let questionStartTime; 
         let authAutoStartTimeoutId; // New: For auto-start timeout after login
 
-        // Firebase variables
-        let db;
-        let auth;
-        let userId; // The current user's UID (anonymous or authenticated)
-        let currentUser = null; // Stores the Firebase User object
+        // User state variables
+        let userId; // The current user's session ID
+        let currentUser = null; // Stores the user session object
 
-        // Firebase Configuration - Using demo config for now
-        // TODO: Replace with your actual Firebase project credentials
-        const firebaseConfig = {
-            apiKey: "AIzaSyBxGUhxGjHqjHqjHqjHqjHqjHqjHqjHqjH", // Demo key - replace with your actual API key
-            authDomain: "demo-math-quiz.firebaseapp.com", // Demo domain - replace with your actual auth domain
-            projectId: "demo-math-quiz", // Demo project ID - replace with your actual project ID
-            storageBucket: "demo-math-quiz.appspot.com", // Demo storage bucket - replace with your actual storage bucket
-            messagingSenderId: "123456789012", // Demo sender ID - replace with your actual messaging sender ID
-            appId: "1:123456789012:web:abcdefghijklmnop", // Demo app ID - replace with your actual app ID
-            measurementId: "G-DEMO123456" // Demo measurement ID - replace with your actual measurement ID
-        };
-        const appId = "demo-math-quiz"; // Use a fixed appId for demo purposes
-
-
-        let app;
-        let firebaseInitialized = false;
+        // Backend API Configuration - SECURE!
+        const API_BASE_URL = 'http://localhost:5000/api';
         
-        try {
-            app = initializeApp(firebaseConfig); 
-            db = getFirestore(app); 
-            auth = getAuth(app);    
-            firebaseInitialized = true;
-            console.log("Firebase initialized successfully.");
-        } catch (error) {
-            console.error("Error initializing Firebase:", error);
-            console.log("Running in offline/demo mode without Firebase");
-            firebaseInitialized = false;
-            db = null;
-            auth = null;
+        // No more Firebase config exposed in frontend!
+        // All Firebase operations now go through secure backend API
+        const appId = "secure-math-quiz"; // App identifier for backend
+
+
+        // Backend API state
+        let backendAvailable = false;
+        let sessionId = null;
+        
+        // Check if backend is available
+        async function checkBackendHealth() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/health`);
+                const data = await response.json();
+                backendAvailable = data.firebase || false;
+                console.log(`Backend available: ${backendAvailable}, Firebase: ${data.firebase}`);
+                return backendAvailable;
+            } catch (error) {
+                console.log("Backend not available, running in offline mode");
+                backendAvailable = false;
+                return false;
+            }
         }
 
         async function authenticateAndLoadData() {
             loadingAuthMessage.classList.add('hidden'); // Hide loading message
             
-            if (!firebaseInitialized) {
+            // Check backend availability first
+            await checkBackendHealth();
+            
+            if (!backendAvailable) {
                 // Offline mode - generate local user ID and show quiz buttons
                 console.log("Running in offline mode");
                 userId = crypto.randomUUID();
@@ -310,77 +305,50 @@
                 return;
             }
             
-            // Firebase mode
-            offlineIndicator.classList.add('hidden'); // Hide offline indicator when Firebase is working
-            demoModeInfo.classList.add('hidden'); // Hide demo mode info when Firebase is working
-            onAuthStateChanged(auth, async (user) => {
-                if (app) { // Only show start button if Firebase core app is initialized
-                    startQuizBtn.classList.remove('hidden'); // Show start quiz button
-                    viewHistoryBtn.classList.remove('hidden'); // Show view history button
-                } else {
-                    startQuizBtn.classList.add('hidden'); // Keep hidden if Firebase init failed
-                    viewHistoryBtn.classList.add('hidden'); // Keep hidden if Firebase init failed
-                }
-
-                if (user) {
-                    currentUser = user;
-                    userId = user.uid; 
+            // Backend mode - create anonymous session
+            try {
+                const response = await fetch(`${API_BASE_URL}/auth/anonymous`, {
+                    method: 'POST',
+                    credentials: 'include'
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    sessionId = data.session_id;
+                    userId = sessionId;
+                    currentUser = { uid: sessionId, isAnonymous: true };
                     
-                    if (user.email) {
-                        userIdDisplay.textContent = `ID: ${user.uid.substring(0, 8)}... | ${user.email}`;
-                        loggedInUserDisplay.textContent = user.email;
-                        loginSection.classList.add('hidden');
-                        logoutSection.classList.remove('hidden');
-                    } else {
-                        userIdDisplay.textContent = `ID: ${user.uid.substring(0, 8)}... | Anonymous`;
-                        loggedInUserDisplay.textContent = `Anonymous (${user.uid.substring(0, 8)}...)`;
-                        loginSection.classList.remove('hidden'); 
-                        logoutSection.classList.add('hidden'); 
-                    }
+                    userIdDisplay.textContent = `ID: ${userId.substring(0, 8)}... | Backend Session`;
+                    loggedInUserDisplay.textContent = 'Backend Session';
+                    loginSection.classList.add('hidden');
+                    logoutSection.classList.add('hidden');
+                    startQuizBtn.classList.remove('hidden');
+                    viewHistoryBtn.classList.remove('hidden');
+                    offlineIndicator.classList.add('hidden'); // Hide offline indicator
+                    demoModeInfo.classList.add('hidden'); // Hide demo mode info
+                    
                     await loadBestScore();
                 } else {
-                    currentUser = null;
-                    userId = crypto.randomUUID(); 
-                    userIdDisplay.textContent = `ID: ${userId.substring(0, 8)}... | Not Logged In`;
-                    loggedInUserDisplay.textContent = 'Not Logged In';
-                    loginSection.classList.remove('hidden');
-                    logoutSection.classList.add('hidden');
-
-                    if (typeof __initial_auth_token === 'undefined' || !__initial_auth_token) {
-                         try {
-                            await signInAnonymously(auth);
-                            console.log("Signed in anonymously.");
-                         } catch (anonError) {
-                            console.error("Failed to sign in anonymously:", anonError);
-                            userIdDisplay.textContent = 'Auth Failed!';
-                            loadingAuthMessage.textContent = 'Failed to sign in. Please try refreshing.';
-                            loadingAuthMessage.classList.remove('hidden');
-                            startQuizBtn.classList.add('hidden'); 
-                         }
-                    }
+                    throw new Error('Failed to create backend session');
                 }
-                // Do NOT call displayQuestion here. It will be called by startQuiz()
-            });
-
-            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                try {
-                    await signInWithCustomToken(auth, __initial_auth_token);
-                    console.log("Signed in with custom token from Canvas.");
-                } catch (error) {
-                    console.error("Error signing in with custom token:", error);
-                }
-            } else if (!auth.currentUser) { 
-                try {
-                    await signInAnonymously(auth);
-                    console.log("Attempting initial anonymous sign-in (outside Canvas).");
-                } catch (error) {
-                    console.error("Error during initial anonymous sign-in:", error);
-                }
+            } catch (error) {
+                console.error("Backend authentication failed:", error);
+                // Fall back to offline mode
+                userId = crypto.randomUUID();
+                currentUser = null;
+                userIdDisplay.textContent = `ID: ${userId.substring(0, 8)}... | Offline Mode`;
+                loggedInUserDisplay.textContent = 'Offline Mode';
+                loginSection.classList.add('hidden');
+                logoutSection.classList.add('hidden');
+                startQuizBtn.classList.remove('hidden');
+                viewHistoryBtn.classList.remove('hidden');
+                offlineIndicator.classList.remove('hidden');
+                demoModeInfo.classList.remove('hidden');
             }
         }
 
         async function loadBestScore() {
-            if (!firebaseInitialized || !db || !userId) {
+            if (!backendAvailable || !userId) {
                 // Offline mode - load from localStorage
                 try {
                     const storedBest = localStorage.getItem(`bestScore_${userId}`);
@@ -401,26 +369,44 @@
                 return;
             }
 
+            // Backend mode - load via secure API
             try {
-                const userDocRef = doc(db, `artifacts/${appId}/users/${userId}/quizData/scoreSummary`);
-                const docSnap = await getDoc(userDocRef); 
-
-                if (docSnap.exists()) { 
-                    bestScore = docSnap.data().bestScore || 0; 
-                    bestScoreDisplay.textContent = bestScore; 
-                } else {
-                    bestScore = 0;
+                const response = await fetch(`${API_BASE_URL}/quiz/best-score`, {
+                    method: 'GET',
+                    credentials: 'include'
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    bestScore = data.best_score || 0;
                     bestScoreDisplay.textContent = bestScore;
-                    console.log(`No best score found for user ${userId}. Starting fresh!`);
+                    console.log(`Loaded best score from backend: ${bestScore}`);
+                } else {
+                    throw new Error(`Backend error: ${response.status}`);
                 }
             } catch (error) {
-                console.error(`Error loading best score for user ${userId}:`, error);
-                bestScoreDisplay.textContent = 'Error!';
+                console.error(`Error loading best score from backend:`, error);
+                // Fall back to localStorage
+                try {
+                    const storedBest = localStorage.getItem(`bestScore_${userId}`);
+                    if (storedBest) {
+                        bestScore = parseInt(storedBest);
+                        bestScoreDisplay.textContent = bestScore;
+                        console.log(`Loaded best score from localStorage as fallback: ${bestScore}`);
+                    } else {
+                        bestScore = 0;
+                        bestScoreDisplay.textContent = bestScore;
+                    }
+                } catch (localError) {
+                    console.error('Error loading from localStorage:', localError);
+                    bestScore = 0;
+                    bestScoreDisplay.textContent = bestScore;
+                }
             }
         }
 
         async function saveScore() {
-            if (!firebaseInitialized || !db || !userId) {
+            if (!backendAvailable || !userId) {
                 // Offline mode - save to localStorage
                 try {
                     const currentBest = parseInt(localStorage.getItem(`bestScore_${userId}`) || '0');
@@ -434,23 +420,43 @@
                 return;
             }
 
+            // Backend mode - save via secure API
             try {
-                const userDocRef = doc(db, `artifacts/${appId}/users/${userId}/quizData/scoreSummary`);
+                const response = await fetch(`${API_BASE_URL}/quiz/save-score`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        score: score,
+                        totalQuestions: totalQuestions
+                    })
+                });
                 
-                await setDoc(userDocRef, {
-                    lastScore: score,
-                    bestScore: Math.max(bestScore, score), 
-                    timestamp: new Date() 
-                }, { merge: true }); 
-                
-                console.log(`Score saved successfully for user ${userId}!`);
+                if (response.ok) {
+                    const data = await response.json();
+                    console.log(`Score saved via backend: ${data.message}`);
+                } else {
+                    throw new Error(`Backend error: ${response.status}`);
+                }
             } catch (error) {
-                console.error(`Error saving score for user ${userId}:`, error);
+                console.error(`Error saving score via backend:`, error);
+                // Fall back to localStorage
+                try {
+                    const currentBest = parseInt(localStorage.getItem(`bestScore_${userId}`) || '0');
+                    const newBest = Math.max(currentBest, score);
+                    localStorage.setItem(`bestScore_${userId}`, newBest.toString());
+                    localStorage.setItem(`bestScoreTimestamp_${userId}`, new Date().toISOString());
+                    console.log('Score saved to localStorage as fallback');
+                } catch (localError) {
+                    console.error('Error saving to localStorage:', localError);
+                }
             }
         }
 
         async function saveQuizSession() {
-            if (!firebaseInitialized || !db || !userId) {
+            if (!backendAvailable || !userId) {
                 // Offline mode - save to localStorage
                 try {
                     const sessionData = {
@@ -478,6 +484,7 @@
                 return;
             }
             
+            // Backend mode - save via secure API
             try {
                 const sessionData = {
                     sessionId: crypto.randomUUID(),
@@ -494,11 +501,47 @@
                     }))
                 };
 
-                const quizHistoryRef = collection(db, 'artifacts', appId, 'users', userId, 'quizData', 'quizHistory');
-                await addDoc(quizHistoryRef, sessionData);
-                console.log('Quiz session saved successfully');
+                const response = await fetch(`${API_BASE_URL}/quiz/save-session`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify(sessionData)
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    console.log(`Quiz session saved via backend: ${data.message}`);
+                } else {
+                    throw new Error(`Backend error: ${response.status}`);
+                }
             } catch (error) {
-                console.error('Error saving quiz session:', error);
+                console.error(`Error saving quiz session via backend:`, error);
+                // Fall back to localStorage
+                try {
+                    const sessionData = {
+                        sessionId: crypto.randomUUID(),
+                        timestamp: new Date().toISOString(),
+                        finalScore: score,
+                        totalQuestions: totalQuestions,
+                        questions: questions.map(q => ({
+                            question: q.question,
+                            correctAnswer: q.answer,
+                            userAnswer: q.userAnswer,
+                            isCorrect: q.isAnswerCorrect,
+                            timeTaken: q.timeTaken,
+                            type: q.type || 'standard'
+                        }))
+                    };
+                    
+                    const existingHistory = JSON.parse(localStorage.getItem(`quizHistory_${userId}`) || '[]');
+                    existingHistory.push(sessionData);
+                    localStorage.setItem(`quizHistory_${userId}`, JSON.stringify(existingHistory));
+                    console.log('Quiz session saved to localStorage as fallback');
+                } catch (localError) {
+                    console.error('Error saving to localStorage:', localError);
+                }
             }
         }
 
@@ -516,7 +559,7 @@
         }
 
         async function loadQuizHistory() {
-            if (!firebaseInitialized || !db || !userId) {
+            if (!backendAvailable || !userId) {
                 // Offline mode - load from localStorage
                 try {
                     const storedHistory = localStorage.getItem(`quizHistory_${userId}`);
@@ -550,12 +593,103 @@
                             `;
                             
                             historyItem.addEventListener('click', () => showSessionDetails(session));
-                        historyContainer.appendChild(historyItem);
-                    });
+                            historyContainer.appendChild(historyItem);
+                        });
+                    } else {
+                        historyContainer.innerHTML = '<p class="text-gray-600">No quiz history found. Complete a quiz to see your results here!</p>';
+                    }
+                } catch (error) {
+                    console.error('Error loading from localStorage:', error);
+                    historyContainer.innerHTML = '<p class="text-red-600">Error loading history. Please try again.</p>';
+                }
+                return;
+            }
+
+            // Backend mode - load via secure API
+            try {
+                const response = await fetch(`${API_BASE_URL}/quiz/history`, {
+                    method: 'GET',
+                    credentials: 'include'
                 });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.history && data.history.length > 0) {
+                        historyContainer.innerHTML = '';
+                        data.history.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+                        
+                        data.history.forEach((session) => {
+                            const historyItem = document.createElement('div');
+                            historyItem.className = 'bg-gray-50 p-4 rounded-lg mb-3 cursor-pointer hover:bg-gray-100 transition-colors';
+                            
+                            const date = new Date(session.timestamp).toLocaleDateString();
+                            const time = new Date(session.timestamp).toLocaleTimeString();
+                            
+                            historyItem.innerHTML = `
+                                <div class="flex justify-between items-center">
+                                    <div>
+                                        <p class="font-semibold text-gray-800">${date} at ${time}</p>
+                                        <p class="text-gray-600">Score: ${session.finalScore}/${session.totalQuestions}</p>
+                                    </div>
+                                    <div class="text-right">
+                                        <span class="text-sm text-gray-500">Click to view details</span>
+                                    </div>
+                                </div>
+                            `;
+                            
+                            historyItem.addEventListener('click', () => showSessionDetails(session));
+                            historyContainer.appendChild(historyItem);
+                        });
+                    } else {
+                        historyContainer.innerHTML = '<p class="text-gray-600">No quiz history found. Complete a quiz to see your results here!</p>';
+                    }
+                } else {
+                    throw new Error(`Backend error: ${response.status}`);
+                }
             } catch (error) {
-                console.error('Error loading quiz history:', error);
-                historyContainer.innerHTML = '<p class="text-red-600">Error loading history. Please try again.</p>';
+                console.error('Error loading quiz history from backend:', error);
+                // Fall back to localStorage
+                try {
+                    const storedHistory = localStorage.getItem(`quizHistory_${userId}`);
+                    if (storedHistory) {
+                        const history = JSON.parse(storedHistory);
+                        if (history.length === 0) {
+                            historyContainer.innerHTML = '<p class="text-gray-600">No quiz history found. Complete a quiz to see your results here!</p>';
+                            return;
+                        }
+                        
+                        historyContainer.innerHTML = '';
+                        history.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+                        
+                        history.forEach((session) => {
+                            const historyItem = document.createElement('div');
+                            historyItem.className = 'bg-gray-50 p-4 rounded-lg mb-3 cursor-pointer hover:bg-gray-100 transition-colors';
+                            
+                            const date = new Date(session.timestamp).toLocaleDateString();
+                            const time = new Date(session.timestamp).toLocaleTimeString();
+                            
+                            historyItem.innerHTML = `
+                                <div class="flex justify-between items-center">
+                                    <div>
+                                        <p class="font-semibold text-gray-800">${date} at ${time}</p>
+                                        <p class="text-gray-600">Score: ${session.finalScore}/${session.totalQuestions}</p>
+                                    </div>
+                                    <div class="text-right">
+                                        <span class="text-sm text-gray-500">Click to view details</span>
+                                    </div>
+                                </div>
+                            `;
+                            
+                            historyItem.addEventListener('click', () => showSessionDetails(session));
+                            historyContainer.appendChild(historyItem);
+                        });
+                    } else {
+                        historyContainer.innerHTML = '<p class="text-gray-600">No quiz history found. Complete a quiz to see your results here!</p>';
+                    }
+                } catch (localError) {
+                    console.error('Error loading from localStorage:', localError);
+                    historyContainer.innerHTML = '<p class="text-red-600">Error loading history. Please try again.</p>';
+                }
             }
         }
 
