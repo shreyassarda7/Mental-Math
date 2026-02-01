@@ -25,9 +25,13 @@ export function show(id) {
   document.getElementById(id).classList.remove("hidden");
 }
 
-export function updateQuiz(q, score, idx) {
+export function updateQuiz(q, score, idx, streak) {
   question.innerText = q.text;
-  scoreEl.innerText = score;
+
+  // Show score + streak
+  const streakText = streak > 1 ? ` 🔥 ${streak}` : '';
+  scoreEl.innerHTML = `${score} <span class="text-orange-500 text-lg animate-pulse">${streakText}</span>`;
+
   qnum.innerText = idx + 1;
 
   // Progress
@@ -44,7 +48,7 @@ export function updateQuiz(q, score, idx) {
   } else {
     regularInput.classList.remove("hidden");
     divContainer.classList.add("hidden");
-    regularInput.value = ''; // clear here
+    regularInput.value = '';
     regularInput.focus();
   }
 }
@@ -89,7 +93,10 @@ export function showSummary(questions) {
   // Clear previous
   summaryBody.innerHTML = "";
 
+  let totalTime = 0;
+
   questions.forEach((q, i) => {
+    totalTime += (q.timeTaken || 0);
     const tr = document.createElement("tr");
     tr.className = "border-b border-slate-700 bg-slate-800 hover:bg-slate-700 transition-colors";
 
@@ -101,6 +108,9 @@ export function showSummary(questions) {
     // Highlight row if wrong
     if (!q.correct) tr.classList.add("bg-red-900/10");
 
+    // Format Time
+    const timeStr = q.timeTaken ? `${q.timeTaken.toFixed(1)}s` : "-";
+
     tr.innerHTML = `
       <th scope="row" class="px-4 py-3 font-medium text-white whitespace-nowrap">
         ${i + 1}. ${q.text}
@@ -111,10 +121,22 @@ export function showSummary(questions) {
       <td class="px-4 py-3 text-cyan-400 font-mono">
         ${q.answer}
       </td>
+      <td class="px-4 py-3 text-slate-400 text-xs text-right">
+        ${timeStr}
+      </td>
       <td class="px-4 py-3 text-center">
         ${success}
       </td>
     `;
     summaryBody.appendChild(tr);
   });
+
+  const avgTime = (totalTime / questions.length).toFixed(1);
+  const avgRow = document.createElement("tr");
+  avgRow.innerHTML = `
+    <td colspan="5" class="px-4 py-3 text-right font-bold text-slate-300">
+      Avg Time: <span class="text-cyan-400">${avgTime}s</span>
+    </td>
+  `;
+  summaryBody.appendChild(avgRow);
 }

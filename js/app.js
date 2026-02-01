@@ -1,7 +1,7 @@
 import { initAuth, db } from "./firebase.js";
-import { initQuiz, state, currentQ, submit, finished }
-  from "./quizEngine.js";
+import { initQuiz, state, currentQ, submit, finished } from "./quizEngine.js";
 import { show, updateQuiz, updateTimerVisual, showFeedback, showSummary } from "./ui.js";
+import { logEvent } from "./logger.js";
 import { addDoc, collection }
   from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
@@ -37,6 +37,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Allow Enter key on all inputs
   [answer, ansQ, ansR].forEach(inp => {
     inp.addEventListener("keydown", (e) => {
+      // Log interaction
+      logEvent("INPUT_KEY", { key: e.key, id: inp.id, value: inp.value });
+
       if (e.key === "Enter") handle(false);
     });
   });
@@ -50,7 +53,15 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     // Adaptive Time
     const q = currentQ();
-    TIME_LIMIT = (q.type === 'div') ? 15 : 10;
+    // 15 seconds for Division OR Double Digit Multiplication
+    // Check for 'div' (current) or 'double' (from question.js)
+    if (q.type === 'div' || q.type === 'double') {
+      TIME_LIMIT = 15;
+    } else {
+      TIME_LIMIT = 10;
+    }
+
+    logEvent("TIMER_START", { limit: TIME_LIMIT, type: q.type });
 
     timeLeft = TIME_LIMIT;
     updateTimerVisual(timeLeft, TIME_LIMIT);
@@ -68,6 +79,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   function loadQ() {
     let q = currentQ();
+    logEvent("QUESTION_LOAD", { idx: state.idx, text: q.text, type: q.type });
+
     updateQuiz(q, state.score, state.idx);
     startTimer();
     answer.focus();
@@ -93,6 +106,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (val === "") return; // Don't submit empty
       }
     }
+
+    logEvent("SUBMIT_ATTEMPT", { val, isTimeout });
 
     const isCorrect = submit(val);
 
