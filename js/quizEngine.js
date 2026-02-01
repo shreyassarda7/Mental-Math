@@ -11,13 +11,13 @@ export let state = {
   qStartTime: 0
 };
 
-export function initQuiz() {
+export function initQuiz(mode = 'standard', count = 20) {
   state.idx = 0;
   state.score = 0;
   state.streak = 0;
   state.maxStreak = 0;
-  state.questions = generateQuestions();
-  logEvent("QUIZ_INIT", { questionCount: state.questions.length });
+  state.questions = generateQuestions(mode, count);
+  logEvent("QUIZ_INIT", { mode, count, questionCount: state.questions.length });
 }
 
 export function startQuestionTimer() {

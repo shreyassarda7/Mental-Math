@@ -1,4 +1,6 @@
 // DOM Elements (Cached)
+import { state } from "./quizEngine.js";
+
 const question = document.getElementById("question");
 const scoreEl = document.getElementById("score");
 const qnum = document.getElementById("qnum");
@@ -133,9 +135,10 @@ export function showSummary(questions) {
 
   const avgTime = (totalTime / questions.length).toFixed(1);
   const avgRow = document.createElement("tr");
+  // Fix: whitespace-nowrap might cause overflow, allow normal wrap
   avgRow.innerHTML = `
-    <td colspan="5" class="px-4 py-3 text-right font-bold text-slate-300">
-      Avg Time: <span class="text-cyan-400">${avgTime}s</span>
+    <td colspan="5" class="px-4 py-3 text-right font-bold text-slate-300 border-t border-slate-600">
+       <span class="mr-2">Avg Time:</span> <span class="text-cyan-400 text-xl">${avgTime}s</span>
     </td>
   `;
   summaryBody.appendChild(avgRow);
