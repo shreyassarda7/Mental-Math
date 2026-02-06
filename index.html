@@ -1,937 +1,220 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="h-full bg-slate-900">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Multiplication Quiz Master</title>
-    <!-- Tailwind CSS CDN -->
+    <title>Mental Math Trainer</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
-    <style>
-        /* Chosen Palette: Warm Harmony */
-        /* Background: #F7F5F0 (Soft Cream) */
-        /* Primary Accent (Buttons/Highlight): #6B7280 (Cool Gray-Blue) */
-        /* Secondary Accent (Options/Text): #9CA3AF (Muted Gray) */
-        /* Success: #10B981 (Emerald Green) */
-        /* Danger/Warning: #EF4444 (Red) */
-        /* Text: #1F2937 (Dark Gray) */
-
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #F7F5F0; /* Soft Cream background */
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            min-height: 100vh;
-            padding: 1rem;
-            box-sizing: border-box;
-        }
-        .container-wrapper {
-            @apply w-full max-w-xl mx-auto p-6 bg-white rounded-3xl shadow-2xl border border-gray-100 flex flex-col items-center;
-        }
-        h1 {
-            @apply text-4xl sm:text-5xl font-extrabold text-gray-800 mb-8;
-        }
-        .text-feedback {
-            @apply text-xl sm:text-2xl font-semibold mb-6 min-h-[30px] flex items-center justify-center;
-        }
-        .btn-primary {
-            @apply bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg shadow-lg transition duration-200 ease-in-out transform hover:scale-105 active:scale-95;
-            background-color: #6B7280; /* Primary Accent */
-        }
-        .btn-primary:hover {
-            background-color: #4B5563;
-        }
-        .input-field {
-            @apply p-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 text-lg sm:text-xl text-center w-full max-w-sm mx-auto;
-        }
-
-        /* Timer Bar Styling */
-        .timer-bar-container {
-            @apply w-full h-4 bg-gray-200 rounded-full overflow-hidden mb-6 shadow-inner;
-        }
-        .timer-progress {
-            @apply h-full rounded-full transition-all duration-100 ease-linear; /* Smoother transition */
-            background-color: #F59E0B; /* Amber 500 */
-        }
-        .timer-progress.critical {
-            background-color: #EF4444; /* Red 500 */
-        }
-        /* Ensure responsive font sizes */
-        @media (max-width: 640px) {
-            h1 {
-                font-size: 2.5rem; /* Smaller on small screens */
-            }
-            .text-feedback {
-                font-size: 1.25rem;
-            }
-            .input-field {
-                font-size: 1.25rem;
-                padding: 0.75rem;
-            }
-            .btn-primary {
-                font-size: 1.25rem;
-                padding: 0.75rem 1.25rem;
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                }
             }
         }
-        .review-item {
-            @apply bg-gray-50 p-4 rounded-lg mb-2 text-left text-gray-800;
-        }
-        .review-item.correct-answer {
-            @apply bg-green-50;
-        }
-        .review-item.incorrect-answer {
-            @apply bg-red-50;
-        }
-        .review-text-correct {
-            @apply text-green-700 font-semibold;
-        }
-        .review-text-incorrect {
-            @apply text-red-700 font-semibold;
-        }
-        #explanation-output {
-            @apply mt-4 p-4 bg-blue-50 rounded-lg text-sm text-gray-700 max-h-48 overflow-y-auto;
-        }
-        .loading-spinner {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #3498db;
-            border-radius: 50%;
-            width: 20px;
-            height: 20px;
-            animation: spin 1s linear infinite;
-            display: inline-block;
-            vertical-align: middle;
-            margin-right: 8px;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-    </style>
+    </script>
 </head>
-<body>
-    <div class="container-wrapper">
-        <h1 class="font-extrabold text-gray-900">Multiplication Quiz Master</h1>
 
-        <!-- NEW: Start Screen/Login Section Container -->
-        <div id="start-screen" class="w-full text-center">
-            <p class="text-sm text-gray-500 mb-2">Your ID: <span id="user-id-display" class="font-mono text-xs">Loading...</span></p>
+<body class="h-full flex items-center justify-center text-white select-none">
 
-            <div id="login-logout-section" class="w-full text-center mt-6 p-4 bg-gray-50 rounded-xl shadow-inner">
-                <div id="login-section" class=""> <!-- Not hidden by default now -->
-                    <h3 class="text-xl font-bold text-gray-800 mb-4">Login or Sign Up</h3>
-                    <input type="email" id="login-email" class="input-field mb-2" placeholder="Email">
-                    <input type="password" id="login-password" class="input-field mb-4" placeholder="Password">
-                    <div class="flex flex-col sm:flex-row gap-2 justify-center">
-                        <button id="signup-btn" class="btn-primary flex-1">Sign Up</button>
-                        <button id="signin-btn" class="btn-primary flex-1">Sign In</button>
+    <!-- Main Container -->
+    <div class="w-full max-w-md p-4">
+
+        <!-- MENU SCREEN -->
+        <div id="start-screen"
+            class="bg-slate-800 rounded-2xl shadow-2xl p-6 text-center border border-slate-700 transition-all duration-300">
+
+            <!-- Auth Header -->
+            <div class="flex justify-between items-center mb-6 border-b border-slate-700 pb-4">
+                <div id="user-display" class="text-sm font-medium text-slate-400">Guest</div>
+                <button id="auth-btn"
+                    class="text-xs bg-slate-700 hover:bg-slate-600 px-3 py-1 rounded text-cyan-400 font-bold transition-colors">
+                    Login
+                </button>
+            </div>
+
+            <h1
+                class="text-3xl font-extrabold mb-2 bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
+                Mental Math
+            </h1>
+            <p class="text-slate-400 mb-6 font-medium text-sm">Select Training Mode</p>
+
+            <div class="grid grid-cols-2 gap-3 mb-4">
+                <button id="btn-std"
+                    class="p-4 bg-slate-700 hover:bg-cyan-900/40 border border-slate-600 hover:border-cyan-500 rounded-xl transition-all group">
+                    <div class="text-2xl mb-1">🎮</div>
+                    <div class="font-bold text-slate-200 group-hover:text-cyan-400">Standard</div>
+                    <div class="text-xs text-slate-500">20 Qs</div>
+                </button>
+
+                <div class="grid grid-rows-2 gap-2">
+                    <button id="btn-trader-20"
+                        class="p-2 bg-slate-700 hover:bg-amber-900/40 border border-slate-600 hover:border-amber-500 rounded-xl transition-all group flex items-center justify-center gap-2">
+                        <span class="text-xl">📈</span>
+                        <div class="text-left">
+                            <div class="font-bold text-slate-200 text-sm group-hover:text-amber-400">Trader 20</div>
+                        </div>
+                    </button>
+                    <button id="btn-trader-40"
+                        class="p-2 bg-slate-700 hover:bg-amber-900/40 border border-slate-600 hover:border-amber-500 rounded-xl transition-all group flex items-center justify-center gap-2">
+                        <span class="text-xl">📈</span>
+                        <div class="text-left">
+                            <div class="font-bold text-slate-200 text-sm group-hover:text-amber-400">Trader 40</div>
+                        </div>
+                    </button>
+                </div>
+
+                <button id="btn-memory"
+                    class="p-4 bg-slate-700 hover:bg-purple-900/40 border border-slate-600 hover:border-purple-500 rounded-xl transition-all group">
+                    <div class="text-2xl mb-1">🧠</div>
+                    <div class="font-bold text-slate-200 group-hover:text-purple-400">Memory</div>
+                    <div class="text-xs text-slate-500">Chain Ops</div>
+                </button>
+
+                <button id="btn-dash"
+                    class="p-4 bg-slate-700 hover:bg-emerald-900/40 border border-slate-600 hover:border-emerald-500 rounded-xl transition-all group">
+                    <div class="text-2xl mb-1">📊</div>
+                    <div class="font-bold text-slate-200 group-hover:text-emerald-400">Stats</div>
+                    <div class="text-xs text-slate-500">Dashboard</div>
+                </button>
+            </div>
+        </div>
+
+        <!-- DASHBOARD SCREEN -->
+        <div id="dashboard-screen"
+            class="hidden bg-slate-800 rounded-2xl shadow-2xl p-6 border border-slate-700 h-[500px] overflow-y-auto">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-bold text-white">Performance</h2>
+                <button id="dash-back" class="text-slate-400 hover:text-white">✕</button>
+            </div>
+
+            <!-- KPIs -->
+            <div class="grid grid-cols-2 gap-4 mb-6">
+                <div class="bg-slate-900 p-4 rounded-xl border border-slate-700">
+                    <div class="text-xs text-slate-500 uppercase">Games Played</div>
+                    <div id="stat-games" class="text-2xl font-bold text-white">-</div>
+                </div>
+                <div class="bg-slate-900 p-4 rounded-xl border border-slate-700">
+                    <div class="text-xs text-slate-500 uppercase">High Score</div>
+                    <div id="stat-high" class="text-2xl font-bold text-emerald-400">-</div>
+                </div>
+            </div>
+
+            <!-- Recent History -->
+            <h3 class="text-sm font-bold text-slate-400 mb-2 uppercase">Recent Sessions</h3>
+            <div class="overflow-hidden rounded-xl border border-slate-700">
+                <table class="w-full text-sm text-left text-slate-400">
+                    <thead class="text-xs text-slate-200 uppercase bg-slate-700">
+                        <tr>
+                            <th class="px-3 py-2">Mode</th>
+                            <th class="px-3 py-2 text-right">Score</th>
+                            <th class="px-3 py-2 text-right">Date</th>
+                        </tr>
+                    </thead>
+                    <tbody id="dash-history" class="divide-y divide-slate-700">
+                        <!-- Injected -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- QUIZ SCREEN -->
+        <div id="quiz-screen" class="hidden relative">
+            <!-- Top Bar: Progress & Score -->
+            <div class="flex justify-between items-center mb-4 text-sm font-semibold text-slate-400">
+                <div>Q <span id="qnum" class="text-white">1</span>/20</div>
+                <div>Score: <span id="score" class="text-cyan-400">0</span></div>
+            </div>
+
+            <!-- Progress Bar -->
+            <div class="h-2 bg-slate-700 rounded-full mb-6 overflow-hidden">
+                <div id="progress-bar"
+                    class="h-full bg-gradient-to-r from-cyan-500 to-blue-500 w-0 transition-all duration-300"></div>
+            </div>
+
+            <!-- Main Card -->
+            <div id="quiz-card"
+                class="bg-slate-800 rounded-2xl shadow-2xl p-8 text-center border border-slate-700 relative overflow-hidden">
+
+                <!-- Timer Visual (Top Border of card) -->
+                <div id="timer-bar"
+                    class="absolute top-0 left-0 h-1 bg-yellow-400 w-full transition-all duration-100 ease-linear">
+                </div>
+
+                <div class="mb-8 mt-4">
+                    <h2 id="question" class="text-5xl font-extrabold text-white tracking-tight"></h2>
+                </div>
+
+                <div class="space-y-4">
+                    <!-- Standard Input -->
+                    <input id="answer" type="text" autocomplete="off"
+                        class="w-full bg-slate-900 border-2 border-slate-700 rounded-xl p-4 text-center text-3xl font-bold focus:border-cyan-500 outline-none transition-colors placeholder-slate-700 text-white"
+                        placeholder="?" autofocus>
+
+                    <!-- Division Inputs (Hidden by default) -->
+                    <div id="div-inputs" class="hidden flex gap-2">
+                        <input id="ans-q" type="tel"
+                            class="w-1/2 bg-slate-900 border-2 border-slate-700 rounded-xl p-4 text-center text-3xl font-bold focus:border-cyan-500 outline-none transition-colors text-white"
+                            placeholder="Q">
+                        <input id="ans-r" type="tel"
+                            class="w-1/2 bg-slate-900 border-2 border-slate-700 rounded-xl p-4 text-center text-3xl font-bold focus:border-cyan-500 outline-none transition-colors text-white"
+                            placeholder="R">
                     </div>
-                </div>
-                <div id="logout-section" class="hidden">
-                    <p class="text-lg text-gray-700 mb-4">Logged in as: <span id="logged-in-user-display" class="font-bold text-gray-900"></span></p>
-                    <button id="logout-btn" class="btn-primary">Logout</button>
-                </div>
-            </div>
 
-            <button id="start-quiz-btn" class="btn-primary mt-8 hidden">Start Quiz</button>
-             <p id="loading-auth-message" class="text-gray-600 mt-4">Loading authentication...</p>
-        </div>
-        <!-- END NEW: Start Screen/Login Section Container -->
-
-        <div id="quiz-area" class="text-center w-full hidden"> <!-- Hidden by default now -->
-            <div class="flex justify-between items-center mb-4 text-gray-700 text-lg sm:text-xl font-bold w-full">
-                <span>Score: <span id="score-display">0</span> / <span id="total-questions">20</span></span>
-                <span>Question: <span id="current-question-number">1</span> / <span id="max-questions">20</span></span>
-            </div>
-
-            <div id="timer-display" class="text-3xl font-bold text-gray-800 mb-4">Time: <span id="time-left">10</span>s</div>
-            <div class="timer-bar-container">
-                <div id="timer-progress" class="timer-progress"></div>
-            </div>
-
-            <div id="question-display" class="text-5xl sm:text-6xl font-extrabold text-gray-800 mb-8 leading-tight"></div>
-            
-            <input type="number" id="answer-input" class="input-field mb-4" placeholder="Your Answer" autofocus>
-            <div id="feedback" class="text-feedback"></div>
-
-            <button id="get-explanation-btn" class="btn-primary mt-4 hidden">Get Explanation ✨</button>
-            <div id="explanation-output" class="hidden"></div>
-        </div>
-
-        <div id="results-area" class="hidden text-center w-full">
-            <h2 class="text-3xl sm:text-4xl font-bold text-gray-800 mb-4">Quiz Completed!</h2>
-            <p class="text-2xl sm:text-3xl text-gray-700 mb-8">Your final score is: <span id="final-score" class="font-extrabold text-blue-600">0</span> / 20</p>
-            <p class="text-lg text-gray-600 mb-4">Your best score so far: <span id="best-score-display" class="font-extrabold text-green-600">0</span></p>
-            
-            <h3 class="text-2xl font-bold text-gray-800 mt-8 mb-4">Quiz Review</h3>
-            <div id="quiz-review-container" class="w-full text-left max-h-96 overflow-y-auto pr-2">
+                    <button id="submit"
+                        class="w-full py-4 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 rounded-xl font-bold text-lg transition-transform active:scale-95 shadow-lg shadow-blue-900/30">
+                        Submit
+                    </button>
                 </div>
 
-            <button id="restart-btn" class="btn-primary mt-8">Play Again</button>
+                <!-- Timer Text -->
+                <div class="mt-4 text-lg font-mono font-bold text-slate-400">
+                    <span id="time" class="text-2xl text-white">10</span>s
+                </div>
+            </div>
         </div>
+
+        <!-- RESULT SCREEN -->
+        <div id="result-screen"
+            class="hidden bg-slate-800 rounded-2xl shadow-2xl p-8 text-center border border-slate-700 max-h-[90vh] overflow-y-auto">
+            <h2 class="text-2xl font-bold text-slate-300 mb-2">Session Complete</h2>
+            <div
+                class="text-6xl font-black mb-6 bg-gradient-to-r from-green-400 to-emerald-600 bg-clip-text text-transparent">
+                <span id="final"></span><span class="text-2xl text-slate-500 ml-1">/ 20</span>
+            </div>
+
+            <!-- Session Summary Table -->
+            <div class="mb-6 overflow-hidden rounded-xl border border-slate-700">
+                <table class="w-full text-sm text-left text-slate-400">
+                    <thead class="text-xs text-slate-200 uppercase bg-slate-700">
+                        <tr>
+                            <th scope="col" class="px-4 py-3">Q</th>
+                            <th scope="col" class="px-4 py-3">Ans</th>
+                            <th scope="col" class="px-4 py-3">Real</th>
+                            <th scope="col" class="px-4 py-3 text-center">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="summary-body" class="divide-y divide-slate-700">
+                        <!-- Rows injected here -->
+                    </tbody>
+                </table>
+            </div>
+
+            <button id="restart"
+                class="w-full py-4 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 rounded-xl font-bold text-lg transition-transform active:scale-95 shadow-lg shadow-emerald-900/30">
+                New Session
+            </button>
+        </div>
+
     </div>
 
-    <audio id="timeout-sound" src="https://assets.mixkit.co/sfx/preview/mixkit-wrong-answer-fail-notification-946.mp3"></audio>
-
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        // DOM element references
-        const questionDisplay = document.getElementById('question-display');
-        const answerInput = document.getElementById('answer-input'); 
-        const feedback = document.getElementById('feedback');
-        const scoreDisplay = document.getElementById('score-display');
-        const currentQuestionNumberDisplay = document.getElementById('current-question-number');
-        const quizArea = document.getElementById('quiz-area');
-        const resultsArea = document.getElementById('results-area');
-        const finalScoreDisplay = document.getElementById('final-score');
-        const restartBtn = document.getElementById('restart-btn');
-        const timerDisplay = document.getElementById('time-left');
-        const timerProgressBar = document.getElementById('timer-progress');
-        const userIdDisplay = document.getElementById('user-id-display'); 
-        const bestScoreDisplay = document.getElementById('best-score-display'); 
-        const quizReviewContainer = document.getElementById('quiz-review-container'); 
-        const timeoutSound = document.getElementById('timeout-sound'); 
-        const getExplanationBtn = document.getElementById('get-explanation-btn'); 
-        const explanationOutput = document.getElementById('explanation-output'); 
-
-        // Login/Logout UI Elements
-        const startScreen = document.getElementById('start-screen'); // Reference to the start screen container
-        const loginLogoutSection = document.getElementById('login-logout-section'); // Reference to the overall login/logout area
-        const loginSection = document.getElementById('login-section');
-        const logoutSection = document.getElementById('logout-section');
-        const loginEmailInput = document.getElementById('login-email');
-        const loginPasswordInput = document.getElementById('login-password');
-        const signupBtn = document.getElementById('signup-btn');
-        const signinBtn = document.getElementById('signin-btn');
-        const logoutBtn = document.getElementById('logout-btn');
-        const loggedInUserDisplay = document.getElementById('logged-in-user-display');
-        const startQuizBtn = document.getElementById('start-quiz-btn'); // Start Quiz Button
-        const loadingAuthMessage = document.getElementById('loading-auth-message'); // Loading message
-
-
-        // Quiz state variables
-        let currentQuestionIndex = 0;
-        let score = 0;
-        const totalQuestions = 20;
-        let questions = [];
-        let answeredCurrentQuestion = false;
-        let bestScore = 0; 
-
-        // Timer related variables
-        let timerInterval;
-        let timeLeft;
-        let baseQuestionTime = 10; 
-        let bonusSecondsAvailable = 0; 
-        const minQuestionTime = 7; 
-        const maxBonusSeconds = 10; 
-        const feedbackDisplayTime = 1500; 
-        let nextQuestionTimeoutId; 
-        let debounceTimeoutId; 
-        let questionStartTime; 
-        let authAutoStartTimeoutId; // New: For auto-start timeout after login
-
-        // Firebase variables
-        let db;
-        let auth;
-        let userId; // The current user's UID (anonymous or authenticated)
-        let currentUser = null; // Stores the Firebase User object
-
-        // PASTE YOUR ACTUAL FIREBASE CONFIG HERE
-        // Make sure this is your EXACT config copied from Firebase Project Settings
-        // Example:
-        const firebaseConfig = {
-            apiKey: "YOUR_API_KEY", // Replace with your actual API key from Firebase Project Settings -> Your apps (Web)
-            authDomain: "YOUR_PROJECT_ID.firebaseapp.com", // Replace with your actual auth domain
-            projectId: "YOUR_PROJECT_ID", // Replace with your actual project ID
-            storageBucket: "YOUR_PROJECT_ID.appspot.com", // Replace with your actual storage bucket
-            messagingSenderId: "YOUR_MESSAGING_SENDER_ID", // Replace with your actual messaging sender ID
-            appId: "YOUR_APP_ID", // Replace with your actual app ID
-            measurementId: "YOUR_MEASUREMENT_ID" // Replace with your actual measurement ID (optional)
-        };
-        const appId = firebaseConfig.projectId; // Use the projectId from your config as the appId
-
-
-        let app;
-        try {
-            app = initializeApp(firebaseConfig); 
-            db = getFirestore(app); 
-            auth = getAuth(app);    
-            console.log("Firebase initialized successfully.");
-        } catch (error) {
-            console.error("Error initializing Firebase:", error);
-            userIdDisplay.textContent = 'Firebase Init Error!';
-            db = null;
-            auth = null;
-            // Hide login section and show an error if Firebase cannot initialize
-            loginLogoutSection.classList.add('hidden');
-            loadingAuthMessage.textContent = 'Failed to initialize app. Check console for errors.';
-            loadingAuthMessage.classList.remove('hidden');
-            loadingAuthMessage.classList.add('text-red-600');
-            startQuizBtn.classList.add('hidden'); // Ensure start button is hidden if firebase init fails
-        }
-
-        async function authenticateAndLoadData() {
-            onAuthStateChanged(auth, async (user) => {
-                loadingAuthMessage.classList.add('hidden'); // Hide loading message once auth state is known
-                if (app) { // Only show start button if Firebase core app is initialized
-                    startQuizBtn.classList.remove('hidden'); // Show start quiz button
-                } else {
-                    startQuizBtn.classList.add('hidden'); // Keep hidden if Firebase init failed
-                }
-
-
-                if (user) {
-                    currentUser = user;
-                    userId = user.uid; 
-                    
-                    if (user.email) {
-                        userIdDisplay.textContent = `ID: ${user.uid.substring(0, 8)}... | ${user.email}`;
-                        loggedInUserDisplay.textContent = user.email;
-                        loginSection.classList.add('hidden');
-                        logoutSection.classList.remove('hidden');
-                    } else {
-                        userIdDisplay.textContent = `ID: ${user.uid.substring(0, 8)}... | Anonymous`;
-                        loggedInUserDisplay.textContent = `Anonymous (${user.uid.substring(0, 8)}...)`;
-                        loginSection.classList.remove('hidden'); 
-                        logoutSection.classList.add('hidden'); 
-                    }
-                    await loadBestScore();
-                } else {
-                    currentUser = null;
-                    userId = crypto.randomUUID(); 
-                    userIdDisplay.textContent = `ID: ${userId.substring(0, 8)}... | Not Logged In`;
-                    loggedInUserDisplay.textContent = 'Not Logged In';
-                    loginSection.classList.remove('hidden');
-                    logoutSection.classList.add('hidden');
-
-                    if (typeof __initial_auth_token === 'undefined' || !__initial_auth_token) {
-                         try {
-                            await signInAnonymously(auth);
-                            console.log("Signed in anonymously.");
-                         } catch (anonError) {
-                            console.error("Failed to sign in anonymously:", anonError);
-                            userIdDisplay.textContent = 'Auth Failed!';
-                            loadingAuthMessage.textContent = 'Failed to sign in. Please try refreshing.';
-                            loadingAuthMessage.classList.remove('hidden');
-                            startQuizBtn.classList.add('hidden'); 
-                         }
-                    }
-                }
-                // Do NOT call displayQuestion here. It will be called by startQuiz()
-            });
-
-            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                try {
-                    await signInWithCustomToken(auth, __initial_auth_token);
-                    console.log("Signed in with custom token from Canvas.");
-                } catch (error) {
-                    console.error("Error signing in with custom token:", error);
-                }
-            } else if (!auth.currentUser) { 
-                try {
-                    await signInAnonymously(auth);
-                    console.log("Attempting initial anonymous sign-in (outside Canvas).");
-                } catch (error) {
-                    console.error("Error during initial anonymous sign-in:", error);
-                }
-            }
-        }
-
-        async function loadBestScore() {
-            if (!db || !userId) {
-                console.warn("Cannot load score: Firebase or User ID not available.");
-                bestScoreDisplay.textContent = 'N/A'; 
-                return;
-            }
-
-            try {
-                const userDocRef = doc(db, `artifacts/${appId}/users/${userId}/quizData/scoreSummary`);
-                const docSnap = await getDoc(userDocRef); 
-
-                if (docSnap.exists()) { 
-                    bestScore = docSnap.data().bestScore || 0; 
-                    bestScoreDisplay.textContent = bestScore; 
-                } else {
-                    bestScore = 0;
-                    bestScoreDisplay.textContent = bestScore;
-                    console.log(`No best score found for user ${userId}. Starting fresh!`);
-                }
-            } catch (error) {
-                console.error(`Error loading best score for user ${userId}:`, error);
-                bestScoreDisplay.textContent = 'Error!';
-            }
-        }
-
-        async function saveScore() {
-            if (!db || !userId) {
-                console.warn("Cannot save score: Firebase or User ID not available.");
-                return;
-            }
-
-            try {
-                const userDocRef = doc(db, `artifacts/${appId}/users/${userId}/quizData/scoreSummary`);
-                
-                await setDoc(userDocRef, {
-                    lastScore: score,
-                    bestScore: Math.max(bestScore, score), 
-                    timestamp: new Date() 
-                }, { merge: true }); 
-                
-                console.log(`Score saved successfully for user ${userId}!`);
-            } catch (error) {
-                console.error(`Error saving score for user ${userId}:`, error);
-            }
-        }
-
-        // Authentication functions
-        async function handleSignUp() {
-            const email = loginEmailInput.value;
-            const password = loginPasswordInput.value;
-            if (!email || !password) {
-                feedback.textContent = "Email and password are required!";
-                feedback.className = 'text-feedback text-red-600';
-                return;
-            }
-            try {
-                const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-                feedback.textContent = "Account created and logged in! Starting quiz in 5s...";
-                feedback.className = 'text-feedback text-green-600';
-                loginEmailInput.value = ''; 
-                loginPasswordInput.value = '';
-                // Auto-start quiz after a delay
-                authAutoStartTimeoutId = setTimeout(startQuiz, 5000); 
-            } catch (error) {
-                feedback.textContent = `Error signing up: ${error.message}`;
-                feedback.className = 'text-feedback text-red-600';
-                console.error("Sign up error:", error);
-            }
-        }
-
-        async function handleSignIn() {
-            const email = loginEmailInput.value;
-            const password = loginPasswordInput.value;
-            if (!email || !password) {
-                feedback.textContent = "Email and password are required!";
-                feedback.className = 'text-feedback text-red-600';
-                return;
-            }
-            try {
-                await signInWithEmailAndPassword(auth, email, password);
-                feedback.textContent = "Logged in successfully! Starting quiz in 5s...";
-                feedback.className = 'text-feedback text-green-600';
-                loginEmailInput.value = ''; 
-                loginPasswordInput.value = '';
-                // Auto-start quiz after a delay
-                authAutoStartTimeoutId = setTimeout(startQuiz, 5000); 
-            } catch (error) {
-                feedback.textContent = `Error signing in: ${error.message}`;
-                feedback.className = 'text-feedback text-red-600';
-                console.error("Sign in error:", error);
-            }
-        }
-
-        async function handleSignOut() {
-            try {
-                if (authAutoStartTimeoutId) { // Clear any pending auto-start
-                    clearTimeout(authAutoStartTimeoutId);
-                    authAutoStartTimeoutId = null;
-                }
-                await signOut(auth);
-                feedback.textContent = "Logged out successfully!";
-                feedback.className = 'text-feedback text-green-600';
-                loginEmailInput.value = ''; 
-                loginPasswordInput.value = '';
-                // After logout, transition back to the start screen and reset quiz state
-                startScreen.classList.remove('hidden');
-                quizArea.classList.add('hidden');
-                resultsArea.classList.add('hidden');
-                resetQuizStateOnly(); // Reset quiz variables without displaying question
-            } catch (error) {
-                feedback.textContent = `Error logging out: ${error.message}`;
-                feedback.className = 'text-feedback text-red-600';
-                console.error("Sign out error:", error);
-            }
-        }
-
-        // NEW: Function to start the quiz
-        function startQuiz() {
-            if (authAutoStartTimeoutId) { // Clear any pending auto-start if manually started
-                clearTimeout(authAutoStartTimeoutId);
-                authAutoStartTimeoutId = null;
-            }
-            startScreen.classList.add('hidden'); // Hide the start screen
-            quizArea.classList.remove('hidden'); // Show the quiz area
-            resetQuizStateOnly(); // Reset quiz variables to start a fresh game
-            initializeQuestions(); // Generate new questions for the new game
-            displayQuestion(); // Start displaying the questions
-        }
-
-        // Function to reset quiz variables without immediately starting a new question or changing UI visibility
-        function resetQuizStateOnly() {
-            currentQuestionIndex = 0;
-            score = 0;
-            baseQuestionTime = 10; 
-            bonusSecondsAvailable = 0; 
-            feedback.textContent = '';
-            quizReviewContainer.innerHTML = ''; 
-            getExplanationBtn.classList.add('hidden'); 
-            explanationOutput.classList.add('hidden'); 
-            explanationOutput.innerHTML = ''; 
-            questions = []; // Clear questions array
-            answeredCurrentQuestion = false;
-        }
-
-        function getRandomNumber(min, max) {
-            return Math.floor(Math.random() * (max - min + 1)) + min;
-        }
-
-        function shuffleArray(array) {
-            for (let i = array.length - 1; i > 0; i--) {
-                const j = Math.floor(Math.random() * (i + 1));
-                [array[i], array[j]] = [array[j], array[i]];
-            }
-            return array;
-        }
-
-        function generateIncorrectOptions(correctAnswer) {
-            const incorrectOptions = new Set();
-            while (incorrectOptions.size < 3) {
-                let distractor;
-                const type = getRandomNumber(1, 4);
-
-                if (type === 1) {
-                    distractor = correctAnswer + getRandomNumber(-5, 5);
-                } else if (type === 2) {
-                    distractor = correctAnswer + getRandomNumber(-15, 15);
-                } else if (type === 3) {
-                    distractor = Math.round(correctAnswer / 10) * 10 + (Math.random() < 0.5 ? -5 : 5);
-                } else {
-                    distractor = parseInt(correctAnswer.toString().split('').reverse().join('')) + getRandomNumber(-5, 5);
-                }
-                
-                if (distractor !== correctAnswer && distractor > 0 && Math.abs(distractor - correctAnswer) < 100) {
-                    incorrectOptions.add(distractor);
-                }
-            }
-            return Array.from(incorrectOptions);
-        }
-
-        /**
-         * Generates a single mathematical component (multiplication, square, or cube).
-         * @returns {object} An object with 'text' (string) and 'value' (number).
-         */
-        function generateQuestionComponent() {
-            const type = getRandomNumber(1, 3); // 1: multiplication, 2: square, 3: cube
-            let text, value;
-
-            if (type === 1) { // Multiplication
-                const num1 = getRandomNumber(5, 20); 
-                const num2 = getRandomNumber(2, 9);  
-                text = `${num1} &times; ${num2}`;
-                value = num1 * num2;
-            } else if (type === 2) { // Square
-                const num = getRandomNumber(5, 15); 
-                text = `${num}^2`;
-                value = num * num;
-            } else { // Cube
-                const num = getRandomNumber(2, 7); 
-                text = `${num}^3`;
-                value = num * num * num;
-            }
-            return { text, value };
-        }
-
-        function generateStandardQuestion() {
-            let component1 = generateQuestionComponent();
-            let component2 = generateQuestionComponent();
-            let questionString = '';
-            let correctAnswer;
-            let operator;
-
-            if (Math.random() < 0.5) {
-                operator = '+';
-                questionString = `${component1.text} + ${component2.text} = ?`;
-                correctAnswer = component1.value + component2.value;
-            } else {
-                operator = '-';
-                if (component1.value < component2.value) {
-                    [component1, component2] = [component2, component1];
-                }
-                questionString = `${component1.text} - ${component2.text} = ?`;
-                correctAnswer = component1.value - component2.value;
-                if (correctAnswer <= 0) { 
-                    return generateStandardQuestion(); 
-                }
-            }
-            
-            const options = new Set(); 
-            options.add(correctAnswer);
-            generateIncorrectOptions(correctAnswer).forEach(opt => options.add(opt));
-            
-            const shuffledOptions = shuffleArray(Array.from(options));
-            return {
-                question: questionString,
-                answer: correctAnswer,
-                options: shuffledOptions, 
-                isBonus: false, 
-                userAnswer: null, 
-                isAnswerCorrect: null,
-                timeTaken: null 
-            };
-        }
-
-        function generateBonusQuestion() {
-            let questionString = '';
-            let correctAnswer;
-            let val1, val2, val3;
-
-            const comboType = getRandomNumber(1, 4);
-
-            if (comboType === 1) {
-                val1 = getRandomNumber(2, 8);
-                val2 = getRandomNumber(2, 12);
-                questionString = `${val2}^2 + ${val1}^3 = ?`;
-                correctAnswer = (val2 * val2) + (val1 * val1 * val1);
-            } else if (comboType === 2) {
-                val1 = getRandomNumber(3, 7);
-                val2 = getRandomNumber(2, 10);
-                val3 = getRandomNumber(2, 8);
-                questionString = `${val1}^3 - ${val2} &times; ${val3} = ?`;
-                correctAnswer = (val1 * val1 * val1) - (val2 * val3);
-            } else if (comboType === 3) {
-                val1 = getRandomNumber(5, 15);
-                val2 = getRandomNumber(3, 9);
-                val3 = getRandomNumber(2, 10);
-                questionString = `${val1} &times; ${val2} + ${val3}^2 = ?`;
-                correctAnswer = (val1 * val2) + (val3 * val3);
-            } else {
-                val1 = getRandomNumber(10, 20);
-                val2 = getRandomNumber(5, 10);
-                val3 = getRandomNumber(2, 8);
-                correctAnswer = (val1 * val2) - (val3 * val3);
-                while (correctAnswer <= 0) {
-                    val1 = getRandomNumber(10, 20);
-                    val2 = getRandomNumber(5, 10);
-                    val3 = getRandomNumber(2, 8);
-                    correctAnswer = (val1 * val2) - (val3 * val3);
-                }
-                questionString = `${val1} &times; ${val2} - ${val3}^2 = ?`;
-            }
-
-            const options = new Set(); 
-            options.add(correctAnswer);
-            generateIncorrectOptions(correctAnswer).forEach(opt => options.add(opt));
-            
-            const shuffledOptions = shuffleArray(Array.from(options));
-
-            return {
-                question: questionString,
-                answer: correctAnswer,
-                options: shuffledOptions, 
-                isBonus: true,
-                userAnswer: null, 
-                isAnswerCorrect: null,
-                timeTaken: null 
-            };
-        }
-
-        function startTimer() {
-            stopTimer();
-            questionStartTime = Date.now(); 
-            timeLeft = baseQuestionTime + bonusSecondsAvailable; 
-            updateTimerDisplay();
-
-            answerInput.value = '';
-            disableInput(false); 
-            getExplanationBtn.classList.add('hidden'); 
-            explanationOutput.classList.add('hidden'); 
-            explanationOutput.innerHTML = ''; 
-            answerInput.focus();
-
-            timerInterval = setInterval(() => {
-                timeLeft--;
-                updateTimerDisplay();
-
-                if (timeLeft <= 0) {
-                    stopTimer();
-                    const currentQ = questions[currentQuestionIndex]; 
-                    feedback.textContent = `Time's up! The answer was ${currentQ.answer}.`;
-                    feedback.className = 'text-feedback text-red-600';
-                    timeoutSound.play(); 
-
-                    currentQ.userAnswer = 'Time Out';
-                    currentQ.isAnswerCorrect = false;
-                    currentQ.timeTaken = (baseQuestionTime + bonusSecondsAvailable).toFixed(1); 
-
-                    baseQuestionTime = Math.max(minQuestionTime, baseQuestionTime - 1);
-
-                    disableInput(true); 
-                    getExplanationBtn.classList.remove('hidden'); 
-                    nextQuestionTimeoutId = setTimeout(nextQuestion, feedbackDisplayTime); 
-                }
-            }, 1000);
-        }
-
-        function stopTimer() {
-            clearInterval(timerInterval);
-            timerProgressBar.classList.remove('critical');
-        }
-
-        function updateTimerDisplay() {
-            timerDisplay.textContent = timeLeft;
-            const initialTimeForProgress = baseQuestionTime + bonusSecondsAvailable; 
-            const progressPercentage = (timeLeft / initialTimeForProgress) * 100;
-            timerProgressBar.style.width = `${progressPercentage}%`;
-
-            if (timeLeft <= (initialTimeForProgress * 0.2)) { 
-                timerProgressBar.classList.add('critical');
-            } else {
-                timerProgressBar.classList.remove('critical');
-            }
-        }
-
-        function displayQuestion() {
-            // This function is now called by startQuiz(), which handles UI visibility
-            if (currentQuestionIndex < totalQuestions) { 
-                const currentQ = questions[currentQuestionIndex];
-                questionDisplay.innerHTML = currentQ.question;
-                feedback.textContent = '';
-                answeredCurrentQuestion = false;
-                
-                currentQuestionNumberDisplay.textContent = currentQuestionIndex + 1;
-                startTimer();
-
-            } else {
-                endQuiz();
-            }
-        }
-
-        function disableInput(shouldDisable) {
-            answerInput.disabled = shouldDisable;
-        }
-        
-        function checkAnswer() {
-            if (answeredCurrentQuestion) return; 
-
-            stopTimer();
-            answeredCurrentQuestion = true;
-            
-            const inputValue = answerInput.value.trim();
-            const userAnswer = parseInt(inputValue, 10);
-            const currentQ = questions[currentQuestionIndex];
-
-            currentQ.timeTaken = ((Date.now() - questionStartTime) / 1000).toFixed(1); 
-
-            if (inputValue === '' || isNaN(userAnswer)) {
-                feedback.textContent = 'Please enter a number!';
-                feedback.className = 'text-feedback text-red-600';
-                timeoutSound.play(); 
-                bonusSecondsAvailable = 0; 
-                currentQ.userAnswer = inputValue === '' ? 'No Input' : 'Invalid Input'; 
-                currentQ.isAnswerCorrect = false;
-                baseQuestionTime = Math.max(minQuestionTime, baseQuestionTime - 1); 
-                disableInput(true);
-                getExplanationBtn.classList.remove('hidden'); 
-                nextQuestionTimeoutId = setTimeout(nextQuestion, feedbackDisplayTime); 
-                return;
-            }
-
-            currentQ.userAnswer = userAnswer; 
-
-            if (userAnswer === currentQ.answer) {
-                feedback.textContent = 'Correct!';
-                feedback.className = 'text-feedback text-green-600';
-                score++;
-                currentQ.isAnswerCorrect = true; 
-
-                bonusSecondsAvailable = Math.min(maxBonusSeconds, bonusSecondsAvailable + 1); 
-                
-            } else {
-                feedback.textContent = `Incorrect. The answer was ${currentQ.answer}.`;
-                feedback.className = 'text-feedback text-red-600';
-                timeoutSound.play(); 
-                bonusSecondsAvailable = 0; 
-                currentQ.isAnswerCorrect = false; 
-                baseQuestionTime = Math.max(minQuestionTime, baseQuestionTime - 1);
-            }
-
-            scoreDisplay.textContent = score;
-            disableInput(true); 
-            getExplanationBtn.classList.remove('hidden'); 
-            nextQuestionTimeoutId = setTimeout(nextQuestion, feedbackDisplayTime); 
-        }
-
-        function nextQuestion() {
-            if (nextQuestionTimeoutId) {
-                clearTimeout(nextQuestionTimeoutId);
-                nextQuestionTimeoutId = null;
-            }
-            if (debounceTimeoutId) {
-                clearTimeout(debounceTimeoutId);
-                debounceTimeoutId = null;
-            }
-
-            currentQuestionIndex++;
-            if (currentQuestionIndex < totalQuestions) {
-                displayQuestion();
-            } else {
-                endQuiz();
-            }
-        }
-
-        async function getExplanation() {
-            const currentQ = questions[currentQuestionIndex - 1]; 
-            if (!currentQ) return;
-
-            getExplanationBtn.disabled = true;
-            getExplanationBtn.innerHTML = '<span class="loading-spinner"></span> Getting Explanation...';
-            explanationOutput.classList.remove('hidden');
-            explanationOutput.innerHTML = 'Loading explanation...';
-
-            const questionTextForLLM = currentQ.question.replace(/&times;/g, '*').replace(' = ?', '');
-            const prompt = `Provide a simple, step-by-step explanation for the following math problem: "${questionTextForLLM}". The correct answer is ${currentQ.answer}. Make it easy to understand for a student. Focus on how to arrive at the correct answer.`;
-
-            let chatHistory = [];
-            chatHistory.push({ role: "user", parts: [{ text: prompt }] });
-            const payload = { contents: chatHistory };
-            const apiKey = ""; 
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
-
-            try {
-                const response = await fetch(apiUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-                const result = await response.json();
-
-                if (result.candidates && result.candidates.length > 0 &&
-                    result.candidates[0].content && result.candidates[0].content.parts &&
-                    result.candidates[0].content.parts.length > 0) {
-                    const text = result.candidates[0].content.parts[0].text;
-                    explanationOutput.innerHTML = text;
-                } else {
-                    explanationOutput.innerHTML = 'Could not get an explanation. Please try again.';
-                    console.error("Gemini API response structure unexpected:", result);
-                }
-            } catch (error) {
-                explanationOutput.innerHTML = 'Error fetching explanation. Please try again.';
-                console.error("Error calling Gemini API:", error);
-            } finally {
-                getExplanationBtn.disabled = false;
-                getExplanationBtn.innerHTML = 'Get Explanation ✨';
-            }
-        }
-
-
-        function populateQuizReview() {
-            quizReviewContainer.innerHTML = ''; 
-            questions.forEach((q, index) => {
-                const reviewItem = document.createElement('div');
-                reviewItem.className = `review-item ${q.isAnswerCorrect ? 'correct-answer' : 'incorrect-answer'}`;
-                
-                const questionText = document.createElement('p');
-                questionText.innerHTML = `<strong>Q${index + 1}:</strong> ${q.question.replace(' = ?', '')}`; 
-                reviewItem.appendChild(questionText);
-
-                const userAnswerText = document.createElement('p');
-                const userAns = q.userAnswer === null || q.userAnswer === undefined ? 'Not Answered' : q.userAnswer;
-                userAnswerText.innerHTML = `Your Answer: <span class="${q.isAnswerCorrect ? 'review-text-correct' : 'review-text-incorrect'}">${userAns}</span>`;
-                reviewItem.appendChild(userAnswerText);
-
-                const correctAnswerText = document.createElement('p');
-                correctAnswerText.innerHTML = `Correct Answer: <span class="font-semibold">${q.answer}</span>`;
-                reviewItem.appendChild(correctAnswerText);
-
-                const timeTakenText = document.createElement('p');
-                timeTakenText.innerHTML = `Time Taken: <span class="font-semibold">${q.timeTaken !== null ? q.timeTaken + 's' : 'N/A'}</span>`;
-                reviewItem.appendChild(timeTakenText);
-
-                quizReviewContainer.appendChild(reviewItem);
-            });
-        }
-
-        function endQuiz() {
-            stopTimer();
-            if (nextQuestionTimeoutId) {
-                clearTimeout(nextQuestionTimeoutId);
-                nextQuestionTimeoutId = null;
-            }
-            if (debounceTimeoutId) {
-                clearTimeout(debounceTimeoutId);
-                debounceTimeoutId = null;
-            }
-            getExplanationBtn.classList.add('hidden'); 
-            explanationOutput.classList.add('hidden'); 
-            explanationOutput.innerHTML = ''; 
-
-            quizArea.classList.add('hidden');
-            resultsArea.classList.remove('hidden');
-            finalScoreDisplay.textContent = score;
-            saveScore();
-            loadBestScore();
-            populateQuizReview(); 
-        }
-
-        // Main reset function now called by 'Play Again'
-        function resetQuiz() {
-            resetQuizStateOnly(); // Clear quiz variables
-            startScreen.classList.remove('hidden'); // Go back to start screen
-            quizArea.classList.add('hidden'); // Hide quiz area
-            resultsArea.classList.add('hidden'); // Hide results area
-            // Auth state listener will ensure login/logout section is correctly shown
-            // displayQuestion will be called by startQuiz()
-        }
-
-        // Event Listeners for Quiz
-        answerInput.addEventListener('input', () => {
-            clearTimeout(debounceTimeoutId);
-            const inputValue = answerInput.value.trim();
-            if (inputValue !== '' && !isNaN(inputValue)) { 
-                debounceTimeoutId = setTimeout(() => {
-                    if (!answeredCurrentQuestion) {
-                        checkAnswer();
-                    }
-                }, 700); 
-            }
-        });
-
-        answerInput.addEventListener('keydown', (event) => {
-            if (event.key === 'Enter') {
-                clearTimeout(debounceTimeoutId); 
-                if (answeredCurrentQuestion) { 
-                    nextQuestion(); 
-                } else { 
-                    checkAnswer(); 
-                }
-            }
-        });
-
-        getExplanationBtn.addEventListener('click', getExplanation); 
-        restartBtn.addEventListener('click', resetQuiz);
-
-        // Event Listeners for Login/Logout
-        signupBtn.addEventListener('click', handleSignUp);
-        signinBtn.addEventListener('click', handleSignIn);
-        logoutBtn.addEventListener('click', handleSignOut);
-        loginPasswordInput.addEventListener('keydown', (event) => {
-            if (event.key === 'Enter') {
-                handleSignIn();
-            }
-        });
-
-        // NEW: Event listener for the Start Quiz button
-        startQuizBtn.addEventListener('click', startQuiz);
-
-
-        window.onload = async function() {
-            document.getElementById('max-questions').textContent = totalQuestions;
-            document.getElementById('total-questions').textContent = totalQuestions;
-            await authenticateAndLoadData(); 
-        };
-    </script>
+    <script type="module" src="js/app.js"></script>
 </body>
+
 </html>

@@ -1,0 +1,36 @@
+/* Custom keyframes for feedback animations */
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-8px); }
+  75% { transform: translateX(8px); }
+}
+
+.animate-shake {
+  animation: shake 0.3s cubic-bezier(.36,.07,.19,.97) both;
+}
+
+@keyframes flash-green {
+  0% { background-color: rgba(34, 197, 94, 0); }
+  10% { background-color: rgba(34, 197, 94, 0.2); }
+  100% { background-color: rgba(34, 197, 94, 0); }
+}
+
+.flash-correct {
+  animation: flash-green 0.5s ease-out;
+}
+
+@keyframes flash-red {
+  0% { background-color: rgba(239, 68, 68, 0); }
+  10% { background-color: rgba(239, 68, 68, 0.2); }
+  100% { background-color: rgba(239, 68, 68, 0); }
+}
+
+.flash-wrong {
+  animation: flash-red 0.5s ease-out;
+}
+
+/* Base reset improvements if needed, but Tailwind handles most */
+input:focus {
+    box-shadow: 0 0 0 4px rgba(6, 182, 212, 0.2); /* Cyan-500 ring */
+}
